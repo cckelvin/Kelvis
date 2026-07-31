@@ -328,10 +328,20 @@ export default function App() {
         }),
       });
 
-      const data = await res.json();
+      const responseText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        if (!res.ok) {
+          throw new Error(
+            `Server returned HTTP ${res.status}. If hosting on Vercel, please check that GEMINI_API_KEY is configured in Vercel Project Settings -> Environment Variables.`
+          );
+        }
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to reach backend server");
+        throw new Error(data.error || `Backend returned status ${res.status}`);
       }
 
       const aiMsg: Message = {

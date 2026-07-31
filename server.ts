@@ -231,6 +231,7 @@ app.post("/api/spotify/search", async (req, res) => {
 
 // Main Chat Endpoint
 app.post("/api/chat", async (req, res) => {
+  res.setHeader("Content-Type", "application/json");
   try {
     const {
       prompt,
@@ -366,7 +367,19 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
+// Global Express Error Handler for JSON safety
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("Unhandled Express Error:", err);
+  res.setHeader("Content-Type", "application/json");
+  res.status(500).json({
+    error: err?.message || "Internal Server Error",
+  });
+});
+
 async function startServer() {
+  if (process.env.VERCEL) {
+    return;
+  }
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -381,13 +394,13 @@ async function startServer() {
     });
   }
 
-  if (!process.env.VERCEL) {
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://0.0.0.0:${PORT}`);
-    });
-  }
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
 
 export default app;
