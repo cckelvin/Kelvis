@@ -13,9 +13,16 @@ app.use(express.json({ limit: "50mb" }));
 
 // Initialize Gemini Client
 function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey =
+    process.env.GEMINI_API_KEY ||
+    process.env.kelvis ||
+    process.env.KELVIS ||
+    process.env.VITE_KELVIS;
+
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not set in environment variables");
+    throw new Error(
+      "API key not found. Please set GEMINI_API_KEY or kelvis in your environment variables."
+    );
   }
   return new GoogleGenAI({
     apiKey,
@@ -29,7 +36,12 @@ function getGeminiClient() {
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
-  const hasKey = Boolean(process.env.GEMINI_API_KEY);
+  const hasKey = Boolean(
+    process.env.GEMINI_API_KEY ||
+      process.env.kelvis ||
+      process.env.KELVIS ||
+      process.env.VITE_KELVIS
+  );
   res.json({ status: "ok", geminiConfigured: hasKey });
 });
 
