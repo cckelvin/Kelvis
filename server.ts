@@ -94,7 +94,7 @@ async function searchSpotifyTrack(query: string) {
     process.env.spotify_client_secret ||
     process.env.SPOTIFY_SECRET;
 
-  if (clientId && clientSecret) {
+  if (clientId && clientSecret && clientId !== "sample_client_id") {
     try {
       const authRes = await fetch("https://accounts.spotify.com/api/token", {
         method: "POST",
@@ -104,26 +104,44 @@ async function searchSpotifyTrack(query: string) {
         },
         body: "grant_type=client_credentials",
       });
-      const authData = await authRes.json();
-      if (authData.access_token) {
-        const searchRes = await fetch(
-          `https://api.spotify.com/v1/search?q=${encodeURIComponent(cleanQuery || "hits")}&type=track&limit=1`,
-          {
-            headers: { Authorization: `Bearer ${authData.access_token}` },
+
+      if (authRes.ok) {
+        const authText = await authRes.text();
+        let authData: any = {};
+        try {
+          authData = JSON.parse(authText);
+        } catch (err) {
+          authData = {};
+        }
+
+        if (authData.access_token) {
+          const searchRes = await fetch(
+            `https://api.spotify.com/v1/search?q=${encodeURIComponent(cleanQuery || "hits")}&type=track&limit=1`,
+            {
+              headers: { Authorization: `Bearer ${authData.access_token}` },
+            }
+          );
+          if (searchRes.ok) {
+            const searchText = await searchRes.text();
+            let searchData: any = {};
+            try {
+              searchData = JSON.parse(searchText);
+            } catch (err) {
+              searchData = {};
+            }
+            const track = searchData.tracks?.items?.[0];
+            if (track) {
+              return {
+                id: track.id,
+                title: track.name,
+                artist: track.artists?.map((a: any) => a.name).join(", "),
+                albumArt: track.album?.images?.[0]?.url,
+                previewUrl: track.preview_url || undefined,
+                spotifyUrl: track.external_urls?.spotify,
+                embedUrl: `https://open.spotify.com/embed/track/${track.id}`,
+              };
+            }
           }
-        );
-        const searchData = await searchRes.json();
-        const track = searchData.tracks?.items?.[0];
-        if (track) {
-          return {
-            id: track.id,
-            title: track.name,
-            artist: track.artists?.map((a: any) => a.name).join(", "),
-            albumArt: track.album?.images?.[0]?.url,
-            previewUrl: track.preview_url || undefined,
-            spotifyUrl: track.external_urls?.spotify,
-            embedUrl: `https://open.spotify.com/embed/track/${track.id}`,
-          };
         }
       }
     } catch (e) {
