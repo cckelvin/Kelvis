@@ -23,16 +23,12 @@ export const SpotifyModal: React.FC<SpotifyModalProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<SpotifyTrack[]>([]);
 
-  const appUrl = "https://ais-dev-37jmnhpkcnypi6scswqfis-295351342290.europe-west1.run.app";
+  const appUrl = typeof window !== "undefined" ? window.location.origin : "https://kelvis.vercel.app";
   const callbackUrl = `${appUrl}/auth/callback`;
 
   // Listen for message from popup window
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      const origin = event.origin;
-      if (!origin.endsWith(".run.app") && !origin.includes("localhost")) {
-        return;
-      }
       if (event.data?.type === "SPOTIFY_AUTH_SUCCESS") {
         setIsConnected(true);
         const uname = "Spotify Connected User";

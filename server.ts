@@ -144,7 +144,9 @@ async function searchSpotifyTrack(query: string) {
 
 // Spotify OAuth URL endpoint
 app.get("/api/spotify/auth-url", (req, res) => {
-  const appUrl = process.env.APP_URL || "https://ais-dev-37jmnhpkcnypi6scswqfis-295351342290.europe-west1.run.app";
+  const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+  const host = req.headers.host;
+  const appUrl = process.env.APP_URL || `${protocol}://${host}`;
   const redirectUri = `${appUrl}/auth/callback`;
   const clientId =
     process.env.SPOTIFY_CLIENT_ID ||
@@ -361,9 +363,13 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
-  });
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://0.0.0.0:${PORT}`);
+    });
+  }
 }
 
 startServer();
+
+export default app;
