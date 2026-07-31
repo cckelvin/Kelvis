@@ -1,0 +1,6 @@
+{
+  "name": "Kelvis AI Assistant",
+  "description": "An AI chat application strictly following the user provided hand-drawn design, controls, icons, and model features.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

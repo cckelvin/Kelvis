@@ -1,0 +1,141 @@
+import React from "react";
+import { X, Sliders, Sparkles, Moon, Sun, Volume2, Globe } from "lucide-react";
+import { AppSettings } from "../types";
+
+interface SettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  settings: AppSettings;
+  onUpdateSettings: (newSettings: Partial<AppSettings>) => void;
+}
+
+export const SettingsModal: React.FC<SettingsModalProps> = ({
+  isOpen,
+  onClose,
+  settings,
+  onUpdateSettings,
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 select-none">
+      <div className="bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl transition-all">
+        {/* Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-zinc-800">
+          <div className="flex items-center space-x-2 text-slate-900 dark:text-zinc-100 font-bold text-base">
+            <Sliders className="w-5 h-5 text-slate-700 dark:text-zinc-300" />
+            <span>AI Assistant Settings</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 rounded-full hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content Controls */}
+        <div className="py-4 space-y-4 text-sm">
+          {/* System Prompt / Persona */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
+              System Instruction / Persona
+            </label>
+            <textarea
+              value={settings.systemInstruction}
+              onChange={(e) =>
+                onUpdateSettings({ systemInstruction: e.target.value })
+              }
+              placeholder="e.g. You are a helpful, concise AI assistant..."
+              rows={3}
+              className="w-full bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-xl p-3 text-slate-800 dark:text-zinc-100 text-xs focus:outline-hidden"
+            />
+          </div>
+
+          {/* Search Grounding Toggle */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-800">
+            <div className="flex items-center space-x-2.5">
+              <Globe className="w-4 h-4 text-sky-500" />
+              <div>
+                <div className="font-semibold text-slate-800 dark:text-zinc-200 text-xs">
+                  Google Search Grounding
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  Fetch live web info & verified sources
+                </div>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={settings.searchGrounding}
+              onChange={(e) =>
+                onUpdateSettings({ searchGrounding: e.target.checked })
+              }
+              className="w-4 h-4 accent-slate-900 dark:accent-zinc-100 cursor-pointer"
+            />
+          </div>
+
+          {/* Auto Voice Readout Toggle */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-800">
+            <div className="flex items-center space-x-2.5">
+              <Volume2 className="w-4 h-4 text-emerald-500" />
+              <div>
+                <div className="font-semibold text-slate-800 dark:text-zinc-200 text-xs">
+                  Auto Text-To-Speech Readout
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  Automatically read AI responses aloud
+                </div>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={settings.autoVoiceRead}
+              onChange={(e) =>
+                onUpdateSettings({ autoVoiceRead: e.target.checked })
+              }
+              className="w-4 h-4 accent-slate-900 dark:accent-zinc-100 cursor-pointer"
+            />
+          </div>
+
+          {/* Dark / Light Theme Toggle */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-800">
+            <div className="flex items-center space-x-2.5">
+              {settings.darkTheme ? (
+                <Moon className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Sun className="w-4 h-4 text-amber-500" />
+              )}
+              <div>
+                <div className="font-semibold text-slate-800 dark:text-zinc-200 text-xs">
+                  Dark Atmosphere
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  Switch visual appearance
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() =>
+                onUpdateSettings({ darkTheme: !settings.darkTheme })
+              }
+              className="px-3 py-1 text-xs font-semibold rounded-full border border-slate-400 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors"
+            >
+              {settings.darkTheme ? "Dark Mode" : "Light Mode"}
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="pt-3 border-t border-slate-200 dark:border-zinc-800 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 rounded-xl bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-bold hover:opacity-90 transition-opacity"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
