@@ -1,11 +1,12 @@
 import React from "react";
-import { MoreVertical, Menu, Plus } from "lucide-react";
+import { MoreVertical, Menu, Plus, Music } from "lucide-react";
 
 interface HeaderProps {
   chatTitle: string;
   onNewChat: () => void;
   onToggleSidebar: () => void;
   onOpenOptionsMenu: () => void;
+  onOpenSpotify?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -13,6 +14,7 @@ export const Header: React.FC<HeaderProps> = ({
   onNewChat,
   onToggleSidebar,
   onOpenOptionsMenu,
+  onOpenSpotify,
 }) => {
   return (
     <header className="bg-slate-50/90 dark:bg-zinc-900/90 backdrop-blur-md px-4 py-3 flex items-center justify-between select-none relative">
@@ -35,8 +37,20 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="h-[2px] bg-slate-700 dark:bg-zinc-300 w-1/2 max-w-[50%] ml-2 rounded-full opacity-80" />
       </div>
 
-      {/* Right side: NEW CHAT pill button + 3-dots options menu */}
+      {/* Right side: Spotify Player + NEW CHAT pill button + 3-dots options menu */}
       <div className="flex items-center space-x-2 shrink-0">
+        {/* Spotify Integration Button */}
+        {onOpenSpotify && (
+          <button
+            onClick={onOpenSpotify}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 transition-colors"
+            title="Spotify Web Integration"
+          >
+            <Music className="w-3.5 h-3.5 fill-current" />
+            <span className="hidden sm:inline">Spotify</span>
+          </button>
+        )}
+
         {/* Quick New Chat Button */}
         <button
           onClick={onNewChat}

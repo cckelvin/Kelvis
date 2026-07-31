@@ -7,7 +7,8 @@ import { SettingsModal } from "./components/SettingsModal";
 import { NotificationsModal } from "./components/NotificationsModal";
 import { AuthModal } from "./components/AuthModal";
 import { SqlSchemaModal } from "./components/SqlSchemaModal";
-import { AttachedFile, ChatSession, Message, AppSettings } from "./types";
+import { SpotifyModal } from "./components/SpotifyModal";
+import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack } from "./types";
 import { Trash2, Download, RotateCcw, Sparkles, Code, Terminal, Info } from "lucide-react";
 import {
   fetchSupabaseSessions,
@@ -82,6 +83,7 @@ export default function App() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState<boolean>(false);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
   const [isSqlModalOpen, setIsSqlModalOpen] = useState<boolean>(false);
+  const [isSpotifyOpen, setIsSpotifyOpen] = useState<boolean>(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showOptionsMenu, setShowOptionsMenu] = useState<boolean>(false);
 
@@ -339,6 +341,7 @@ export default function App() {
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         image: data.image,
         sources: data.sources,
+        spotifyTrack: data.spotifyTrack,
       };
 
       setSessions((prev) =>
@@ -385,6 +388,38 @@ export default function App() {
     setShowOptionsMenu(false);
   };
 
+  const handlePlaySelectedTrack = (track: SpotifyTrack) => {
+    const userMsg: Message = {
+      id: `msg-${Date.now()}`,
+      role: "user",
+      text: `Play song: ${track.title} by ${track.artist}`,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    const aiMsg: Message = {
+      id: `msg-${Date.now() + 1}`,
+      role: "model",
+      text: `Playing **${track.title}** by ${track.artist} on Spotify!`,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      spotifyTrack: track,
+    };
+
+    const updatedSession: ChatSession = {
+      id: activeSession?.id || activeSessionId,
+      title: activeSession?.title || "NEW CHAT",
+      model: activeSession?.model || selectedModel,
+      updatedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      messages: [...(activeSession?.messages || []), userMsg, aiMsg],
+    };
+
+    setSessions((prev) =>
+      prev.map((s) => (s.id === activeSessionId ? updatedSession : s))
+    );
+    saveSupabaseSession(updatedSession);
+    saveSupabaseMessage(activeSessionId, userMsg);
+    saveSupabaseMessage(activeSessionId, aiMsg);
+  };
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-200 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 font-sans">
       {/* Sidebar matching hand drawn lower panel */}
@@ -410,6 +445,7 @@ export default function App() {
           onNewChat={handleNewChat}
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           onOpenOptionsMenu={() => setShowOptionsMenu(!showOptionsMenu)}
+          onOpenSpotify={() => setIsSpotifyOpen(true)}
         />
 
         {/* 3-Dots Options Menu Popup */}
@@ -574,6 +610,13 @@ export default function App() {
       <SqlSchemaModal
         isOpen={isSqlModalOpen}
         onClose={() => setIsSqlModalOpen(false)}
+      />
+
+      {/* Spotify Integration Modal */}
+      <SpotifyModal
+        isOpen={isSpotifyOpen}
+        onClose={() => setIsSpotifyOpen(false)}
+        onSelectTrackToPlay={handlePlaySelectedTrack}
       />
     </div>
   );

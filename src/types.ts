@@ -10,6 +10,16 @@ export interface GroundingSource {
   url: string;
 }
 
+export interface SpotifyTrack {
+  id: string;
+  title: string;
+  artist: string;
+  albumArt?: string;
+  previewUrl?: string;
+  spotifyUrl: string;
+  embedUrl: string;
+}
+
 export interface Message {
   id: string;
   role: "user" | "model";
@@ -18,6 +28,7 @@ export interface Message {
   image?: string;
   sources?: GroundingSource[];
   files?: { name: string; mimeType: string }[];
+  spotifyTrack?: SpotifyTrack;
 }
 
 export interface ChatSession {

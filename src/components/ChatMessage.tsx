@@ -13,6 +13,7 @@ import {
   Play,
   Code,
   Sparkles,
+  Music,
 } from "lucide-react";
 import { CodePreviewModal } from "./CodePreviewModal";
 
@@ -212,6 +213,65 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                   {processedText}
                 </ReactMarkdown>
               </div>
+
+              {/* Interactive Spotify Player Card */}
+              {message.spotifyTrack && (
+                <div className="mt-3 p-3 rounded-2xl bg-zinc-950 border border-emerald-500/40 text-white shadow-lg overflow-hidden select-none">
+                  {/* Spotify Header */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-6 h-6 rounded-full bg-emerald-500 text-black flex items-center justify-center font-bold">
+                        <Music className="w-3.5 h-3.5 fill-current" />
+                      </div>
+                      <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                        Spotify Web Music
+                      </span>
+                    </div>
+                    <a
+                      href={message.spotifyTrack.spotifyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center space-x-1 underline font-semibold"
+                    >
+                      <span>Open Spotify</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+
+                  {/* Track Info */}
+                  <div className="flex items-center space-x-3 mb-2.5">
+                    {message.spotifyTrack.albumArt && (
+                      <img
+                        src={message.spotifyTrack.albumArt}
+                        alt={message.spotifyTrack.title}
+                        className="w-12 h-12 rounded-xl object-cover border border-zinc-800 shrink-0"
+                      />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold truncate text-zinc-100">
+                        {message.spotifyTrack.title}
+                      </div>
+                      <div className="text-xs text-zinc-400 truncate">
+                        {message.spotifyTrack.artist}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Spotify Embed Web Player */}
+                  <div className="rounded-xl overflow-hidden bg-black/50 border border-zinc-800">
+                    <iframe
+                      src={message.spotifyTrack.embedUrl}
+                      width="100%"
+                      height="152"
+                      frameBorder="0"
+                      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                      loading="lazy"
+                      className="w-full rounded-xl"
+                      title={`Spotify Player - ${message.spotifyTrack.title}`}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Grounding Sources Badges if available */}
               {message.sources && message.sources.length > 0 && (
