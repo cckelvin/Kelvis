@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
@@ -11,18 +10,32 @@ const PORT = 3000;
 
 app.use(express.json({ limit: "50mb" }));
 
+// Normalize requested model to valid public Gemini API model alias
+function normalizeModelName(requestedModel?: string): string {
+  if (!requestedModel) return "gemini-2.5-flash";
+  const m = String(requestedModel).toLowerCase();
+  if (m.includes("3.6") || m.includes("3.") || m.includes("flash-lite")) {
+    return "gemini-2.5-flash";
+  }
+  if (m.includes("2.5-pro")) return "gemini-2.5-pro";
+  if (m.includes("2.5")) return "gemini-2.5-flash";
+  if (m.includes("2.0")) return "gemini-2.0-flash";
+  if (m.includes("1.5-pro")) return "gemini-1.5-pro";
+  if (m.includes("1.5")) return "gemini-1.5-flash";
+  return "gemini-2.5-flash";
+}
+
 // Initialize Gemini Client
 function getGeminiClient() {
   const apiKey =
     process.env.GEMINI_API_KEY ||
     process.env.kelvis ||
     process.env.KELVIS ||
-    process.env.VITE_KELVIS;
+    process.env.VITE_KELVIS ||
+    process.env.VITE_GEMINI_API_KEY;
 
   if (!apiKey) {
-    throw new Error(
-      "API key not found. Please set GEMINI_API_KEY or kelvis in your environment variables."
-    );
+    return null;
   }
   return new GoogleGenAI({
     apiKey,
@@ -35,12 +48,13 @@ function getGeminiClient() {
 }
 
 // Health check endpoint
-app.get("/api/health", (req, res) => {
+app.get(["/api/health", "/health"], (req, res) => {
   const hasKey = Boolean(
     process.env.GEMINI_API_KEY ||
       process.env.kelvis ||
       process.env.KELVIS ||
-      process.env.VITE_KELVIS
+      process.env.VITE_KELVIS ||
+      process.env.VITE_GEMINI_API_KEY
   );
   res.json({ status: "ok", geminiConfigured: hasKey });
 });
@@ -161,7 +175,7 @@ async function searchSpotifyTrack(query: string) {
 }
 
 // Spotify OAuth URL endpoint
-app.get("/api/spotify/auth-url", (req, res) => {
+app.get(["/api/spotify/auth-url", "/spotify/auth-url"], (req, res) => {
   const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
   const host = req.headers.host;
   const appUrl = process.env.APP_URL || `${protocol}://${host}`;
@@ -215,7 +229,7 @@ app.get(["/auth/callback", "/auth/callback/"], (req, res) => {
 });
 
 // Spotify direct search endpoint
-app.post("/api/spotify/search", async (req, res) => {
+app.post(["/api/spotify/search", "/spotify/search"], async (req, res) => {
   try {
     const { query } = req.body;
     if (!query) {
@@ -230,13 +244,14 @@ app.post("/api/spotify/search", async (req, res) => {
 });
 
 // Main Chat Endpoint
-app.post("/api/chat", async (req, res) => {
+app.post(["/api/chat", "/chat"], async (req, res) => {
   res.setHeader("Content-Type", "application/json");
+  let spotifyTrackObj: any = null;
   try {
     const {
       prompt,
       history = [],
-      model = "gemini-3.6-flash",
+      model = "gemini-2.5-flash",
       files = [],
       searchGrounding = false,
       systemInstruction,
@@ -249,13 +264,27 @@ app.post("/api/chat", async (req, res) => {
 
     // Check if music play intent is present
     const isMusicIntent = prompt && /\b(play|song|music|spotify|listen to|put on|track)\b/i.test(prompt);
-    let spotifyTrackObj: any = null;
 
     if (isMusicIntent) {
       spotifyTrackObj = await searchSpotifyTrack(prompt);
     }
 
     const ai = getGeminiClient();
+
+    if (!ai) {
+      let outputText = "⚠️ **Gemini API Key Missing on Vercel Environment**\n\nYour application is hosted on Vercel, but `GEMINI_API_KEY` has not been added to your Vercel Project Environment Variables.\n\n**To enable AI responses on https://kelvis.vercel.app:**\n1. Open your **Vercel Dashboard** -> Select your **kelvis** project.\n2. Go to **Settings** -> **Environment Variables**.\n3. Add variable Name: `GEMINI_API_KEY` with your Gemini API key value from Google AI Studio.\n4. Save and click **Redeploy** on Vercel.";
+      if (spotifyTrackObj) {
+        outputText += `\n\n==Now Playing on Spotify==: **${spotifyTrackObj.title}** by ${spotifyTrackObj.artist}. Enjoy the music below!`;
+      }
+      res.json({
+        text: outputText,
+        image: null,
+        sources: [],
+        spotifyTrack: spotifyTrackObj,
+        modelUsed: "notice",
+      });
+      return;
+    }
 
     // Prepare content parts
     const parts: any[] = [];
@@ -305,14 +334,23 @@ app.post("/api/chat", async (req, res) => {
       config.tools = [{ googleSearch: {} }];
     }
 
-    // Check if model is image generation
-    const selectedModel = model || "gemini-3.6-flash";
+    const selectedModel = normalizeModelName(model);
 
-    const response = await ai.models.generateContent({
-      model: selectedModel,
-      contents: contents.length === 1 ? contents[0] : contents,
-      config: Object.keys(config).length > 0 ? config : undefined,
-    });
+    let response: any;
+    try {
+      response = await ai.models.generateContent({
+        model: selectedModel,
+        contents: contents.length === 1 ? contents[0] : contents,
+        config: Object.keys(config).length > 0 ? config : undefined,
+      });
+    } catch (genErr: any) {
+      console.warn(`Primary model ${selectedModel} failed, trying fallback gemini-2.0-flash:`, genErr);
+      response = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: contents.length === 1 ? contents[0] : contents,
+        config: Object.keys(config).length > 0 ? config : undefined,
+      });
+    }
 
     let outputText = response.text || "";
     let generatedImage: string | null = null;
@@ -361,8 +399,12 @@ app.post("/api/chat", async (req, res) => {
     });
   } catch (err: any) {
     console.error("Gemini API Error:", err);
-    res.status(500).json({
-      error: err.message || "An error occurred while communicating with Gemini API",
+    res.json({
+      text: `⚠️ **AI Service Notice**: ${err.message || "Unable to reach Gemini API"}.\n\nIf hosted on Vercel, please check that \`GEMINI_API_KEY\` is configured in Vercel Project Settings -> Environment Variables.`,
+      image: null,
+      sources: [],
+      spotifyTrack: spotifyTrackObj || null,
+      modelUsed: "error",
     });
   }
 });
@@ -381,6 +423,7 @@ async function startServer() {
     return;
   }
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
