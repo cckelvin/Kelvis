@@ -12,17 +12,12 @@ app.use(express.json({ limit: "50mb" }));
 
 // Normalize requested model to valid public Gemini API model alias
 function normalizeModelName(requestedModel?: string): string {
-  if (!requestedModel) return "gemini-2.5-flash";
+  if (!requestedModel) return "gemini-2.0-flash";
   const m = String(requestedModel).toLowerCase();
-  if (m.includes("3.6") || m.includes("3.") || m.includes("flash-lite")) {
-    return "gemini-2.5-flash";
-  }
-  if (m.includes("2.5-pro")) return "gemini-2.5-pro";
-  if (m.includes("2.5")) return "gemini-2.5-flash";
+  if (m.includes("2.5-pro") || m.includes("2.5")) return "gemini-2.5-pro";
+  if (m.includes("flash-lite") || m.includes("lite")) return "gemini-2.0-flash-lite";
   if (m.includes("2.0")) return "gemini-2.0-flash";
-  if (m.includes("1.5-pro")) return "gemini-1.5-pro";
-  if (m.includes("1.5")) return "gemini-1.5-flash";
-  return "gemini-2.5-flash";
+  return "gemini-2.0-flash";
 }
 
 // Initialize Gemini Client
@@ -251,7 +246,7 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
     const {
       prompt,
       history = [],
-      model = "gemini-2.5-flash",
+      model = "gemini-2.0-flash",
       files = [],
       searchGrounding = false,
       systemInstruction,
@@ -344,12 +339,20 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
         config: Object.keys(config).length > 0 ? config : undefined,
       });
     } catch (genErr: any) {
-      console.warn(`Primary model ${selectedModel} failed, trying fallback gemini-2.0-flash:`, genErr);
-      response = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: contents.length === 1 ? contents[0] : contents,
-        config: Object.keys(config).length > 0 ? config : undefined,
-      });
+      console.warn(`Primary model ${selectedModel} failed:`, genErr?.message || genErr);
+      if (selectedModel !== "gemini-2.0-flash-lite") {
+        try {
+          response = await ai.models.generateContent({
+            model: "gemini-2.0-flash-lite",
+            contents: contents.length === 1 ? contents[0] : contents,
+            config: Object.keys(config).length > 0 ? config : undefined,
+          });
+        } catch (fallbackErr: any) {
+          throw genErr;
+        }
+      } else {
+        throw genErr;
+      }
     }
 
     let outputText = response.text || "";
@@ -399,8 +402,19 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
     });
   } catch (err: any) {
     console.error("Gemini API Error:", err);
+    const errStr = String(err?.message || err || "");
+    let noticeText = "";
+
+    if (errStr.includes("RESOURCE_EXHAUSTED") || errStr.includes("429") || errStr.includes("Quota exceeded")) {
+      noticeText = `⚠️ **Gemini API Quota Exceeded (429)**\n\nThe API key has run out of remaining free quota or hit rate limits (\`RESOURCE_EXHAUSTED\` / 0 remaining).\n\n**How to fix:**\n1. Check billing/usage at [Google AI Studio](https://aistudio.google.com/)\n2. Enable billing or wait for the daily free tier limit to reset.\n3. Update your \`GEMINI_API_KEY\` environment variable in Vercel or environment settings.`;
+    } else if (errStr.includes("404") || errStr.includes("not found")) {
+      noticeText = `⚠️ **Model Error (404)**: The requested Gemini model alias was not recognized. We updated the system defaults to \`gemini-2.0-flash\`.`;
+    } else {
+      noticeText = `⚠️ **AI Service Notice**: ${err?.message || "Unable to reach Gemini API"}.\n\nIf hosted on Vercel, please check that \`GEMINI_API_KEY\` is configured in Vercel Project Settings -> Environment Variables.`;
+    }
+
     res.json({
-      text: `⚠️ **AI Service Notice**: ${err.message || "Unable to reach Gemini API"}.\n\nIf hosted on Vercel, please check that \`GEMINI_API_KEY\` is configured in Vercel Project Settings -> Environment Variables.`,
+      text: noticeText,
       image: null,
       sources: [],
       spotifyTrack: spotifyTrackObj || null,
