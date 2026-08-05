@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai";
+import Groq from "groq-sdk";
 
 dotenv.config();
 
@@ -10,19 +10,25 @@ const PORT = 3000;
 
 app.use(express.json({ limit: "50mb" }));
 
-// Normalize requested model to valid public Gemini API model alias
-function normalizeModelName(requestedModel?: string): string {
-  if (!requestedModel) return "gemini-2.0-flash";
+// Normalize requested model to valid public Groq API model alias
+function normalizeGroqModelName(requestedModel?: string): string {
+  if (!requestedModel) return "llama-3.3-70b-versatile";
   const m = String(requestedModel).toLowerCase();
-  if (m.includes("2.5-pro") || m.includes("2.5")) return "gemini-2.5-pro";
-  if (m.includes("flash-lite") || m.includes("lite")) return "gemini-2.0-flash-lite";
-  if (m.includes("2.0")) return "gemini-2.0-flash";
-  return "gemini-2.0-flash";
+  if (m.includes("deepseek") || m.includes("r1")) return "deepseek-r1-distill-llama-70b";
+  if (m.includes("8b") || m.includes("instant") || m.includes("lite") || m.includes("flash")) return "llama-3.1-8b-instant";
+  if (m.includes("mixtral") || m.includes("8x7b")) return "mixtral-8x7b-32768";
+  if (m.includes("gemma")) return "gemma2-9b-it";
+  if (m.includes("70b") || m.includes("versatile") || m.includes("pro") || m.includes("llama")) return "llama-3.3-70b-versatile";
+  return "llama-3.3-70b-versatile";
 }
 
-// Initialize Gemini Client
-function getGeminiClient() {
+// Initialize Groq Client
+function getGroqClient() {
   const apiKey =
+    process.env.GROQ_API_KEY ||
+    process.env.groq_api_key ||
+    process.env.GROQ_KEY ||
+    process.env.VITE_GROQ_API_KEY ||
     process.env.GEMINI_API_KEY ||
     process.env.kelvis ||
     process.env.KELVIS ||
@@ -32,26 +38,23 @@ function getGeminiClient() {
   if (!apiKey) {
     return null;
   }
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        "User-Agent": "aistudio-build",
-      },
-    },
-  });
+  return new Groq({ apiKey });
 }
 
 // Health check endpoint
 app.get(["/api/health", "/health"], (req, res) => {
   const hasKey = Boolean(
-    process.env.GEMINI_API_KEY ||
+    process.env.GROQ_API_KEY ||
+      process.env.groq_api_key ||
+      process.env.GROQ_KEY ||
+      process.env.VITE_GROQ_API_KEY ||
+      process.env.GEMINI_API_KEY ||
       process.env.kelvis ||
       process.env.KELVIS ||
       process.env.VITE_KELVIS ||
       process.env.VITE_GEMINI_API_KEY
   );
-  res.json({ status: "ok", geminiConfigured: hasKey });
+  res.json({ status: "ok", groqConfigured: hasKey, provider: "groq" });
 });
 
 // Spotify Search & Embed Helper
@@ -246,7 +249,7 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
     const {
       prompt,
       history = [],
-      model = "gemini-2.0-flash",
+      model = "llama-3.3-70b-versatile",
       files = [],
       searchGrounding = false,
       systemInstruction,
@@ -264,10 +267,10 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
       spotifyTrackObj = await searchSpotifyTrack(prompt);
     }
 
-    const ai = getGeminiClient();
+    const groq = getGroqClient();
 
-    if (!ai) {
-      let outputText = "⚠️ **Gemini API Key Missing on Vercel Environment**\n\nYour application is hosted on Vercel, but `GEMINI_API_KEY` has not been added to your Vercel Project Environment Variables.\n\n**To enable AI responses on https://kelvis.vercel.app:**\n1. Open your **Vercel Dashboard** -> Select your **kelvis** project.\n2. Go to **Settings** -> **Environment Variables**.\n3. Add variable Name: `GEMINI_API_KEY` with your Gemini API key value from Google AI Studio.\n4. Save and click **Redeploy** on Vercel.";
+    if (!groq) {
+      let outputText = "⚠️ **Groq API Key Missing**\n\nYour application is configured to use Groq, but `GROQ_API_KEY` has not been added to your environment variables.\n\n**To enable Groq AI responses on https://kelvis.vercel.app:**\n1. Get your free API key at [Groq Console](https://console.groq.com/)\n2. Open your **Vercel Dashboard** -> Select your **kelvis** project.\n3. Go to **Settings** -> **Environment Variables** -> Add Name: `GROQ_API_KEY`.\n4. Save and click **Redeploy** on Vercel.";
       if (spotifyTrackObj) {
         outputText += `\n\n==Now Playing on Spotify==: **${spotifyTrackObj.title}** by ${spotifyTrackObj.artist}. Enjoy the music below!`;
       }
@@ -281,71 +284,56 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
       return;
     }
 
-    // Prepare content parts
-    const parts: any[] = [];
+    // Prepare messages for Groq completion
+    const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
 
-    // Add files if attached (inline base64)
-    if (files && files.length > 0) {
-      for (const file of files) {
-        if (file.data && file.mimeType) {
-          parts.push({
-            inlineData: {
-              data: file.data.replace(/^data:[^;]+;base64,/, ""),
-              mimeType: file.mimeType,
-            },
-          });
-        }
-      }
+    if (systemInstruction) {
+      messages.push({
+        role: "system",
+        content: systemInstruction,
+      });
     }
 
-    // Add text prompt
-    if (prompt) {
-      parts.push({ text: prompt });
-    }
-
-    // Build history context if present
-    const contents: any[] = [];
     if (history && history.length > 0) {
       for (const msg of history) {
-        contents.push({
-          role: msg.role === "user" ? "user" : "model",
-          parts: [{ text: msg.text }],
+        messages.push({
+          role: msg.role === "user" ? "user" : "assistant",
+          content: msg.text || "",
         });
       }
     }
 
-    // Add current turn
-    contents.push({
+    // Add file metadata / descriptions if attachments are provided
+    let userMessageContent = prompt || "";
+    if (files && files.length > 0) {
+      const fileSummary = files
+        .map((f: any) => `[Attached File: ${f.name || "attachment"} (${f.mimeType || "file"})]`)
+        .join("\n");
+      userMessageContent = fileSummary ? `${fileSummary}\n\n${userMessageContent}` : userMessageContent;
+    }
+
+    messages.push({
       role: "user",
-      parts: parts.length > 0 ? parts : [{ text: prompt || "" }],
+      content: userMessageContent || "Hello",
     });
 
-    // Configure tools & options
-    const config: any = {};
-    if (systemInstruction) {
-      config.systemInstruction = systemInstruction;
-    }
-    if (searchGrounding) {
-      config.tools = [{ googleSearch: {} }];
-    }
+    const selectedModel = normalizeGroqModelName(model);
 
-    const selectedModel = normalizeModelName(model);
-
-    let response: any;
+    let completion: any;
     try {
-      response = await ai.models.generateContent({
+      completion = await groq.chat.completions.create({
         model: selectedModel,
-        contents: contents.length === 1 ? contents[0] : contents,
-        config: Object.keys(config).length > 0 ? config : undefined,
+        messages: messages as any,
+        temperature: 0.7,
       });
     } catch (genErr: any) {
-      console.warn(`Primary model ${selectedModel} failed:`, genErr?.message || genErr);
-      if (selectedModel !== "gemini-2.0-flash-lite") {
+      console.warn(`Primary Groq model ${selectedModel} failed:`, genErr?.message || genErr);
+      if (selectedModel !== "llama-3.1-8b-instant") {
         try {
-          response = await ai.models.generateContent({
-            model: "gemini-2.0-flash-lite",
-            contents: contents.length === 1 ? contents[0] : contents,
-            config: Object.keys(config).length > 0 ? config : undefined,
+          completion = await groq.chat.completions.create({
+            model: "llama-3.1-8b-instant",
+            messages: messages as any,
+            temperature: 0.7,
           });
         } catch (fallbackErr: any) {
           throw genErr;
@@ -355,39 +343,7 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
       }
     }
 
-    let outputText = response.text || "";
-    let generatedImage: string | null = null;
-    const groundingSources: Array<{ title: string; url: string }> = [];
-
-    // Check for inline images or grounding metadata
-    const candidates = response.candidates;
-    if (candidates && candidates.length > 0) {
-      const firstCandidate = candidates[0];
-
-      // Grounding sources
-      const groundingChunks = firstCandidate.groundingMetadata?.groundingChunks;
-      if (groundingChunks && Array.isArray(groundingChunks)) {
-        for (const chunk of groundingChunks) {
-          if (chunk.web?.uri) {
-            groundingSources.push({
-              title: chunk.web.title || chunk.web.uri,
-              url: chunk.web.uri,
-            });
-          }
-        }
-      }
-
-      // Check parts for generated image inline data
-      const resParts = firstCandidate.content?.parts;
-      if (resParts && Array.isArray(resParts)) {
-        for (const p of resParts) {
-          if (p.inlineData?.data) {
-            const mime = p.inlineData.mimeType || "image/png";
-            generatedImage = `data:${mime};base64,${p.inlineData.data}`;
-          }
-        }
-      }
-    }
+    let outputText = completion.choices?.[0]?.message?.content || "";
 
     if (spotifyTrackObj && !outputText.includes("Spotify")) {
       outputText += `\n\n==Now Playing on Spotify==: **${spotifyTrackObj.title}** by ${spotifyTrackObj.artist}. Enjoy the music below!`;
@@ -395,22 +351,22 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
 
     res.json({
       text: outputText,
-      image: generatedImage,
-      sources: groundingSources,
+      image: null,
+      sources: [],
       spotifyTrack: spotifyTrackObj,
       modelUsed: selectedModel,
     });
   } catch (err: any) {
-    console.error("Gemini API Error:", err);
+    console.error("Groq API Error:", err);
     const errStr = String(err?.message || err || "");
     let noticeText = "";
 
-    if (errStr.includes("RESOURCE_EXHAUSTED") || errStr.includes("429") || errStr.includes("Quota exceeded")) {
-      noticeText = `⚠️ **Gemini API Quota Exceeded (429)**\n\nThe API key has run out of remaining free quota or hit rate limits (\`RESOURCE_EXHAUSTED\` / 0 remaining).\n\n**How to fix:**\n1. Check billing/usage at [Google AI Studio](https://aistudio.google.com/)\n2. Enable billing or wait for the daily free tier limit to reset.\n3. Update your \`GEMINI_API_KEY\` environment variable in Vercel or environment settings.`;
-    } else if (errStr.includes("404") || errStr.includes("not found")) {
-      noticeText = `⚠️ **Model Error (404)**: The requested Gemini model alias was not recognized. We updated the system defaults to \`gemini-2.0-flash\`.`;
+    if (errStr.includes("RESOURCE_EXHAUSTED") || errStr.includes("429") || errStr.includes("rate_limit_exceeded") || errStr.includes("quota")) {
+      noticeText = `⚠️ **Groq API Rate Limit Exceeded (429)**\n\nThe Groq API key has temporarily reached its rate limits or request quota.\n\n**How to fix:**\n1. Check your usage at [Groq Console](https://console.groq.com/)\n2. Wait a few moments for rate limits to reset or add billing details.`;
+    } else if (errStr.includes("401") || errStr.includes("invalid_api_key")) {
+      noticeText = `⚠️ **Invalid Groq API Key (401)**: Please verify that \`GROQ_API_KEY\` is configured correctly in environment variables.`;
     } else {
-      noticeText = `⚠️ **AI Service Notice**: ${err?.message || "Unable to reach Gemini API"}.\n\nIf hosted on Vercel, please check that \`GEMINI_API_KEY\` is configured in Vercel Project Settings -> Environment Variables.`;
+      noticeText = `⚠️ **Groq AI Service Notice**: ${err?.message || "Unable to reach Groq API"}.\n\nIf hosted on Vercel, please check that \`GROQ_API_KEY\` is configured in Vercel Project Settings -> Environment Variables.`;
     }
 
     res.json({

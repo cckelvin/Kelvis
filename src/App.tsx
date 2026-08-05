@@ -74,7 +74,7 @@ export default function App() {
 
   const [prompt, setPrompt] = useState<string>("");
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>("gemini-2.0-flash");
+  const [selectedModel, setSelectedModel] = useState<string>("llama-3.3-70b-versatile");
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // UI States

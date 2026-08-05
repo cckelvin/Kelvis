@@ -35,10 +35,10 @@ interface InputToolbarProps {
 }
 
 const AVAILABLE_MODELS = [
-  { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", desc: "Fast & Smart Default" },
-  { id: "gemini-2.0-flash-lite", name: "Gemini 2.0 Flash Lite", desc: "Minimal Latency" },
-  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", desc: "High Performance" },
-  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", desc: "Complex Reasoning & Code" },
+  { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", desc: "Fast & Capable Default" },
+  { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", desc: "Ultra-Fast Instant" },
+  { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek R1 70B", desc: "Reasoning & Code" },
+  { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B", desc: "High Context Window" },
 ];
 
 export const InputToolbar: React.FC<InputToolbarProps> = ({
