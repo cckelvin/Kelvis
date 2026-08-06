@@ -1,5 +1,5 @@
 import React from "react";
-import { MoreVertical, Menu, Plus, Music } from "lucide-react";
+import { MoreVertical, Menu, Plus, Music, Sun, Moon } from "lucide-react";
 
 interface HeaderProps {
   chatTitle: string;
@@ -7,6 +7,8 @@ interface HeaderProps {
   onToggleSidebar: () => void;
   onOpenOptionsMenu: () => void;
   onOpenSpotify?: () => void;
+  darkTheme?: boolean;
+  onToggleTheme?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,9 +17,11 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
   onOpenOptionsMenu,
   onOpenSpotify,
+  darkTheme,
+  onToggleTheme,
 }) => {
   return (
-    <header className="bg-slate-50/90 dark:bg-zinc-900/90 backdrop-blur-md px-4 py-3 flex items-center justify-between select-none relative">
+    <header className="bg-slate-50/90 dark:bg-zinc-900/90 backdrop-blur-md px-4 py-3 flex items-center justify-between select-none relative border-b border-slate-200/50 dark:border-zinc-800/50">
       {/* Left side: Menu toggle + Chat Title + Halfway Line extending right */}
       <div className="flex items-center space-x-3 flex-1 min-w-0 pr-4">
         <button
@@ -28,17 +32,32 @@ export const Header: React.FC<HeaderProps> = ({
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Title without circle stuff */}
+        {/* Title */}
         <span className="font-semibold text-slate-800 dark:text-zinc-100 tracking-wide text-sm sm:text-base uppercase shrink-0">
           {chatTitle || "NEW"}
         </span>
 
-        {/* Line extending halfway across top bar as shown in sketch */}
+        {/* Line extending halfway across top bar */}
         <div className="h-[2px] bg-slate-700 dark:bg-zinc-300 w-1/2 max-w-[50%] ml-2 rounded-full opacity-80" />
       </div>
 
-      {/* Right side: Spotify Player + NEW CHAT pill button + 3-dots options menu */}
+      {/* Right side: Theme Toggle + Spotify Player + NEW CHAT pill button + 3-dots options menu */}
       <div className="flex items-center space-x-2 shrink-0">
+        {/* Quick Theme Toggle Button */}
+        {onToggleTheme && (
+          <button
+            onClick={onToggleTheme}
+            className="p-1.5 rounded-full text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-amber-400 hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors border border-slate-300 dark:border-zinc-700"
+            title={darkTheme ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {darkTheme ? (
+              <Sun className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Moon className="w-4 h-4 text-slate-700" />
+            )}
+          </button>
+        )}
+
         {/* Spotify Integration Button */}
         {onOpenSpotify && (
           <button

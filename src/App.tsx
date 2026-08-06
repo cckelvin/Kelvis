@@ -76,6 +76,7 @@ export default function App() {
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>("llama-3.3-70b-versatile");
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isCodeMode, setIsCodeMode] = useState<boolean>(false);
 
   // UI States
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
@@ -129,15 +130,21 @@ export default function App() {
     localStorage.setItem("sketch_ai_sessions", JSON.stringify(sessions));
   }, [sessions]);
 
-  // Persist settings locally
+  // Persist settings locally & sync theme classes
   useEffect(() => {
     localStorage.setItem("sketch_ai_settings", JSON.stringify(settings));
     if (settings.darkTheme) {
       document.documentElement.classList.add("dark");
+      document.body.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
+      document.body.classList.remove("dark");
     }
   }, [settings]);
+
+  const toggleTheme = () => {
+    setSettings((prev) => ({ ...prev, darkTheme: !prev.darkTheme }));
+  };
 
   // Check health status on load
   useEffect(() => {
@@ -306,10 +313,22 @@ export default function App() {
     saveSupabaseSession(updatedSession);
     saveSupabaseMessage(activeSessionId, userMsg);
 
+    // Detect coding intent or code mode
+    const isCodingQuery =
+      isCodeMode ||
+      /code|function|html|css|javascript|typescript|python|react|component|build|script|class|interface|sql|algorithm|bug|fix|developer|program/i.test(
+        currentPrompt
+      );
+
+    const modelToUse = isCodingQuery ? "gpt-oss-120b" : selectedModel;
+    if (isCodingQuery && selectedModel !== "gpt-oss-120b") {
+      setSelectedModel("gpt-oss-120b");
+    }
+
     setIsLoading(true);
 
     try {
-      // Build history payload for Gemini backend API
+      // Build history payload for backend API
       const historyPayload = (activeSession?.messages || []).map((m) => ({
         role: m.role,
         text: m.text,
@@ -321,7 +340,7 @@ export default function App() {
         body: JSON.stringify({
           prompt: currentPrompt,
           history: historyPayload,
-          model: selectedModel,
+          model: modelToUse,
           files: currentFiles,
           searchGrounding: settings.searchGrounding,
           systemInstruction: settings.systemInstruction,
@@ -456,6 +475,8 @@ export default function App() {
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           onOpenOptionsMenu={() => setShowOptionsMenu(!showOptionsMenu)}
           onOpenSpotify={() => setIsSpotifyOpen(true)}
+          darkTheme={settings.darkTheme}
+          onToggleTheme={toggleTheme}
         />
 
         {/* 3-Dots Options Menu Popup */}
@@ -591,6 +612,14 @@ export default function App() {
           onToggleSearchGrounding={() =>
             setSettings((prev) => ({ ...prev, searchGrounding: !prev.searchGrounding }))
           }
+          isCodeMode={isCodeMode}
+          onToggleCodeMode={() => {
+            const nextMode = !isCodeMode;
+            setIsCodeMode(nextMode);
+            if (nextMode) {
+              setSelectedModel("gpt-oss-120b");
+            }
+          }}
         />
       </main>
 

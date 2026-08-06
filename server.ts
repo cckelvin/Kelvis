@@ -14,6 +14,10 @@ app.use(express.json({ limit: "50mb" }));
 function normalizeGroqModelName(requestedModel?: string): string {
   if (!requestedModel) return "llama-3.3-70b-versatile";
   const m = String(requestedModel).toLowerCase();
+  if (m.includes("gpt-oss") || m.includes("gptoss") || m.includes("oss-120b") || m.includes("code")) {
+    // Map Open GPT-OSS 120B to high-capability reasoning / coding model
+    return "qwen-2.5-32b" in Groq ? "qwen-2.5-coder-32b" : "deepseek-r1-distill-llama-70b";
+  }
   if (m.includes("deepseek") || m.includes("r1")) return "deepseek-r1-distill-llama-70b";
   if (m.includes("8b") || m.includes("instant") || m.includes("lite") || m.includes("flash")) return "llama-3.1-8b-instant";
   if (m.includes("mixtral") || m.includes("8x7b")) return "mixtral-8x7b-32768";
@@ -287,12 +291,20 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
     // Prepare messages for Groq completion
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
 
-    if (systemInstruction) {
-      messages.push({
-        role: "system",
-        content: systemInstruction,
-      });
-    }
+    const defaultStructuredSystemInstruction =
+      "You are Kelvis, an expert AI assistant specialized in structured answers and high-performance software engineering. " +
+      "Guidelines for responses:\n" +
+      "1. Structure your responses with clean Markdown headers (`###`), bullet points, and concise sections.\n" +
+      "2. Highlight essential key terms using `==key phrase==` formatting.\n" +
+      "3. When writing code, provide complete, self-contained, fully working code blocks (e.g. ```html, ```javascript, ```typescript, ```python, etc.) so users can test or copy them.\n" +
+      "4. Be direct, clear, professional, and thorough.";
+
+    messages.push({
+      role: "system",
+      content: systemInstruction
+        ? `${systemInstruction}\n\n${defaultStructuredSystemInstruction}`
+        : defaultStructuredSystemInstruction,
+    });
 
     if (history && history.length > 0) {
       for (const msg of history) {

@@ -14,8 +14,126 @@ import {
   Code,
   Sparkles,
   Music,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { CodePreviewModal } from "./CodePreviewModal";
+
+interface CodeBlockItemProps {
+  lang: string;
+  codeString: string;
+  blockIdx: number;
+  canRun: boolean;
+  copiedBlockIndex: number | null;
+  onCopy: (code: string, idx: number) => void;
+  onPreview: (code: string, lang: string) => void;
+}
+
+const CodeBlockItem: React.FC<CodeBlockItemProps> = ({
+  lang,
+  codeString,
+  blockIdx,
+  canRun,
+  copiedBlockIndex,
+  onCopy,
+  onPreview,
+}) => {
+  const lineCount = codeString.split("\n").length;
+  // Long code blocks (> 10 lines) default to collapsed to save space, but can be easily toggled
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(lineCount > 10);
+
+  return (
+    <div className="my-3 rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 text-slate-100 shadow-lg text-xs font-mono transition-all">
+      {/* Code Box Header */}
+      <div className="flex items-center justify-between px-3.5 py-2 bg-slate-900 border-b border-slate-800 text-[11px] text-slate-400 font-sans select-none">
+        <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="flex items-center space-x-1.5 hover:text-white transition-colors cursor-pointer"
+            title={isCollapsed ? "Expand code" : "Collapse code"}
+          >
+            <Code className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="font-bold uppercase tracking-wider text-slate-200">
+              {lang}
+            </span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700 font-mono">
+              {lineCount} {lineCount === 1 ? "line" : "lines"}
+            </span>
+            {isCollapsed ? (
+              <ChevronRight className="w-3.5 h-3.5 text-amber-400 ml-0.5" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-0.5" />
+            )}
+          </button>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          {/* Collapse/Expand Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors text-[10px] font-semibold"
+          >
+            {isCollapsed ? "Expand" : "Collapse"}
+          </button>
+
+          {/* Runnable button if HTML / JS / CSS / TS */}
+          {canRun && (
+            <button
+              type="button"
+              onClick={() => onPreview(codeString, lang)}
+              className="px-2 py-0.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 font-semibold flex items-center space-x-1 transition-colors"
+            >
+              <Play className="w-3 h-3 fill-current" />
+              <span>Run Preview</span>
+            </button>
+          )}
+
+          {/* Copy Button */}
+          <button
+            type="button"
+            onClick={() => onCopy(codeString, blockIdx)}
+            className="hover:text-white p-1 rounded-md transition-colors flex items-center space-x-1"
+            title="Copy Code"
+          >
+            {copiedBlockIndex === blockIdx ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-emerald-400">Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copy</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Code Body vs Collapsed Summary */}
+      {isCollapsed ? (
+        <div
+          onClick={() => setIsCollapsed(false)}
+          className="p-3 bg-slate-950/90 hover:bg-slate-900/80 text-slate-400 text-xs font-sans cursor-pointer flex items-center justify-between italic transition-colors group"
+        >
+          <span className="truncate flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+            <span>Collapsed {lineCount} lines of {lang.toUpperCase()} code to save space.</span>
+          </span>
+          <span className="text-[11px] text-emerald-400 not-italic font-semibold shrink-0 ml-2 group-hover:underline">
+            Click to Expand →
+          </span>
+        </div>
+      ) : (
+        <pre className="p-3.5 overflow-x-auto leading-relaxed text-[12px] bg-slate-950/90 text-slate-200">
+          <code>{codeString}</code>
+        </pre>
+      )}
+    </div>
+  );
+};
 
 interface ChatMessageProps {
   message: Message;
@@ -140,53 +258,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                       if (!inline && (match || codeString.includes("\n"))) {
                         const canRun = isRunnableCode(lang, codeString);
                         return (
-                          <div className="my-3 rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 text-slate-100 shadow-lg text-xs font-mono">
-                            {/* Code Box Header */}
-                            <div className="flex items-center justify-between px-3.5 py-2 bg-slate-900 border-b border-slate-800 text-[11px] text-slate-400 font-sans">
-                              <div className="flex items-center space-x-1.5">
-                                <Code className="w-3.5 h-3.5 text-emerald-400" />
-                                <span className="font-bold uppercase tracking-wider text-slate-300">
-                                  {lang}
-                                </span>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                {/* Runnable button if HTML / JS / CSS */}
-                                {canRun && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setPreviewCode({ code: codeString, language: lang })}
-                                    className="px-2 py-0.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 font-semibold flex items-center space-x-1 transition-colors"
-                                  >
-                                    <Play className="w-3 h-3 fill-current" />
-                                    <span>Run Preview</span>
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopyText(codeString, blockIdx)}
-                                  className="hover:text-white p-1 rounded-md transition-colors flex items-center space-x-1"
-                                  title="Copy Code"
-                                >
-                                  {copiedBlockIndex === blockIdx ? (
-                                    <>
-                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                      <span className="text-emerald-400">Copied</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Copy className="w-3.5 h-3.5" />
-                                      <span>Copy</span>
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Code Content */}
-                            <pre className="p-3.5 overflow-x-auto leading-relaxed text-[12px] bg-slate-950/90 text-slate-200">
-                              <code>{codeString}</code>
-                            </pre>
-                          </div>
+                          <CodeBlockItem
+                            lang={lang}
+                            codeString={codeString}
+                            blockIdx={blockIdx}
+                            canRun={canRun}
+                            copiedBlockIndex={copiedBlockIndex}
+                            onCopy={handleCopyText}
+                            onPreview={(code, language) =>
+                              setPreviewCode({ code, language })
+                            }
+                          />
                         );
                       }
 

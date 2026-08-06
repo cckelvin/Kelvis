@@ -11,6 +11,8 @@ import {
   FileText,
   Image as ImageIcon,
   Check,
+  Code,
+  Sparkles,
 } from "lucide-react";
 import { AttachedFile } from "../types";
 
@@ -32,13 +34,15 @@ interface InputToolbarProps {
   onToggleConnect: () => void;
   searchGrounding: boolean;
   onToggleSearchGrounding: () => void;
+  isCodeMode?: boolean;
+  onToggleCodeMode?: () => void;
 }
 
 const AVAILABLE_MODELS = [
+  { id: "gpt-oss-120b", name: "Open GPT-OSS 120B", desc: "Specialized Coding & Reasoning" },
   { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", desc: "Fast & Capable Default" },
   { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", desc: "Ultra-Fast Instant" },
-  { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek R1 70B", desc: "Reasoning & Code" },
-  { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B", desc: "High Context Window" },
+  { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek R1 70B", desc: "Reasoning & Math" },
 ];
 
 export const InputToolbar: React.FC<InputToolbarProps> = ({
@@ -57,6 +61,8 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
   onToggleVoiceCall,
   isConnected,
   onToggleConnect,
+  isCodeMode,
+  onToggleCodeMode,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
@@ -242,10 +248,35 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
             >
               <Zap className={`w-4 h-4 ${isConnected ? "fill-amber-500 text-amber-500" : ""}`} />
             </button>
+
+            {/* ICON-ONLY 5: CODE MODE -> Code icon `💻` */}
+            <button
+              onClick={() => {
+                if (onToggleCodeMode) {
+                  onToggleCodeMode();
+                } else {
+                  setSelectedModel("gpt-oss-120b");
+                }
+              }}
+              className={`p-2 rounded-xl border transition-all shadow-2xs relative ${
+                isCodeMode || selectedModel === "gpt-oss-120b"
+                  ? "bg-sky-600 text-white border-sky-500 shadow-sky-500/20 shadow-md"
+                  : "border-slate-300 dark:border-zinc-700 bg-white/80 dark:bg-zinc-800/80 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200"
+              }`}
+              title="Coding Mode (Auto-switches to Open GPT-OSS 120B)"
+            >
+              <Code className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Model Selection Dropdown pill on bottom right */}
-          <div className="relative">
+          <div className="flex items-center space-x-2 relative">
+            {(isCodeMode || selectedModel === "gpt-oss-120b") && (
+              <div className="hidden sm:flex items-center space-x-1 px-2.5 py-1 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-600 dark:text-sky-400 text-[11px] font-bold">
+                <Sparkles className="w-3 h-3 text-sky-500" />
+                <span>Open GPT-OSS 120B</span>
+              </div>
+            )}
             <button
               onClick={() => setShowModelDropdown(!showModelDropdown)}
               className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full border-2 border-slate-400 dark:border-zinc-600 bg-white dark:bg-zinc-950 hover:bg-slate-100 dark:hover:bg-zinc-900 text-slate-800 dark:text-zinc-200 text-xs font-semibold transition-all shadow-xs"
