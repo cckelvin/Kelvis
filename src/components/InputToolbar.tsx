@@ -39,10 +39,8 @@ interface InputToolbarProps {
 }
 
 const AVAILABLE_MODELS = [
-  { id: "gpt-oss-120b", name: "Open GPT-OSS 120B", desc: "Specialized Coding & Reasoning" },
-  { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", desc: "Fast & Capable Default" },
-  { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", desc: "Ultra-Fast Instant" },
-  { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek R1 70B", desc: "Reasoning & Math" },
+  { id: "gpt-oss-120b", name: "Open GPT-OSS 120B", desc: "Specialized Coding & Knowledge Engine" },
+  { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek R1 70B", desc: "Deep Reasoning & Research Engine" },
 ];
 
 export const InputToolbar: React.FC<InputToolbarProps> = ({

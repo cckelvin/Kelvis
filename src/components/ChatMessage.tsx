@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { motion } from "motion/react";
 import { Message } from "../types";
 import {
@@ -244,10 +245,52 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 </div>
               )}
 
-              {/* Message Text with Markdown & Code Box Support */}
+              {/* Message Text with Markdown, Table & Code Box Support */}
               <div className="markdown-body space-y-2 select-text">
                 <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
                   components={{
+                    // Custom Table Rendering
+                    table({ children }) {
+                      return (
+                        <div className="my-3 overflow-x-auto rounded-xl border border-slate-300 dark:border-zinc-700 shadow-xs bg-white/60 dark:bg-zinc-900/60">
+                          <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                            {children}
+                          </table>
+                        </div>
+                      );
+                    },
+                    thead({ children }) {
+                      return (
+                        <thead className="bg-slate-200/90 dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 font-bold border-b border-slate-300 dark:border-zinc-700">
+                          {children}
+                        </thead>
+                      );
+                    },
+                    tbody({ children }) {
+                      return <tbody className="divide-y divide-slate-200 dark:divide-zinc-800">{children}</tbody>;
+                    },
+                    tr({ children }) {
+                      return (
+                        <tr className="hover:bg-slate-100/80 dark:hover:bg-zinc-800/50 transition-colors">
+                          {children}
+                        </tr>
+                      );
+                    },
+                    th({ children }) {
+                      return (
+                        <th className="px-3.5 py-2.5 font-semibold text-slate-900 dark:text-zinc-100 text-[11px] sm:text-xs uppercase tracking-wider">
+                          {children}
+                        </th>
+                      );
+                    },
+                    td({ children }) {
+                      return (
+                        <td className="px-3.5 py-2 text-slate-700 dark:text-zinc-300 text-xs sm:text-sm">
+                          {children}
+                        </td>
+                      );
+                    },
                     // Custom Code Block rendering inside Box with Header and Run Button
                     code({ node, inline, className, children, ...props }: any) {
                       const match = /language-(\w+)/.exec(className || "");
@@ -282,7 +325,44 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                       );
                     },
                     p({ children }) {
-                      return <p className="leading-relaxed my-1">{children}</p>;
+                      return <p className="leading-relaxed my-1.5">{children}</p>;
+                    },
+                    blockquote({ children }) {
+                      return (
+                        <blockquote className="my-3 border-l-3 border-amber-500/90 dark:border-amber-400 pl-3.5 py-2 bg-slate-100/80 dark:bg-zinc-900/80 text-slate-800 dark:text-zinc-200 font-medium italic rounded-r-xl shadow-2xs">
+                          {children}
+                        </blockquote>
+                      );
+                    },
+                    h1({ children }) {
+                      return (
+                        <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white mt-4 mb-2 border-b border-slate-200 dark:border-zinc-800 pb-1">
+                          {children}
+                        </h1>
+                      );
+                    },
+                    h2({ children }) {
+                      return (
+                        <h2 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-amber-300 mt-3.5 mb-1.5 flex items-center space-x-2">
+                          <span>{children}</span>
+                        </h2>
+                      );
+                    },
+                    h3({ children }) {
+                      return (
+                        <h3 className="text-sm sm:text-base font-semibold text-slate-800 dark:text-zinc-200 mt-3 mb-1">
+                          {children}
+                        </h3>
+                      );
+                    },
+                    ul({ children }) {
+                      return <ul className="list-disc list-inside my-2 space-y-1 text-slate-700 dark:text-zinc-300">{children}</ul>;
+                    },
+                    ol({ children }) {
+                      return <ol className="list-decimal list-inside my-2 space-y-1 text-slate-700 dark:text-zinc-300">{children}</ol>;
+                    },
+                    hr() {
+                      return <hr className="my-4 border-slate-300 dark:border-zinc-800" />;
                     },
                     strong({ children }) {
                       return <strong className="font-bold text-slate-900 dark:text-white bg-amber-100/60 dark:bg-amber-900/30 px-1 rounded-xs">{children}</strong>;
@@ -355,25 +435,55 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 </div>
               )}
 
-              {/* Grounding Sources Badges if available */}
+              {/* Searched Web Sources & Domain Badges below response */}
               {message.sources && message.sources.length > 0 && (
-                <div className="mt-3 pt-2 border-t border-slate-200 dark:border-zinc-700 text-xs">
-                  <p className="font-semibold text-slate-500 dark:text-zinc-400 mb-1 text-[11px]">
-                    Sources & Web Grounding:
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {message.sources.map((src, i) => (
-                      <a
-                        key={i}
-                        href={src.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 hover:bg-sky-100 hover:text-sky-700 dark:hover:bg-sky-900/40 dark:hover:text-sky-300 transition-colors"
-                      >
-                        <span className="truncate max-w-[140px]">{src.title}</span>
-                        <ExternalLink className="w-2.5 h-2.5 shrink-0" />
-                      </a>
-                    ))}
+                <div className="mt-3 pt-2.5 border-t border-slate-200/80 dark:border-zinc-800 text-xs select-none">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <div className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                    </div>
+                    <span className="font-bold text-[11px] uppercase tracking-wider text-slate-700 dark:text-cyan-400">
+                      Searched Live Web Sources ({message.sources.length})
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {message.sources.map((src, i) => {
+                      const domainName =
+                        src.domain ||
+                        (() => {
+                          try {
+                            return new URL(src.url).hostname.replace(/^www\./, "");
+                          } catch (e) {
+                            return "web";
+                          }
+                        })();
+
+                      return (
+                        <a
+                          key={i}
+                          href={src.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-slate-100 dark:bg-zinc-900 text-slate-800 dark:text-zinc-200 border border-slate-300 dark:border-zinc-700/80 hover:border-cyan-500 dark:hover:border-cyan-400 hover:text-cyan-600 dark:hover:text-cyan-300 transition-all shadow-xs group"
+                          title={src.snippet || src.title}
+                        >
+                          <img
+                            src={`https://www.google.com/s2/favicons?domain=${domainName}&sz=32`}
+                            alt={domainName}
+                            className="w-3.5 h-3.5 rounded-xs shrink-0 bg-white/20"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = "none";
+                            }}
+                          />
+                          <span className="truncate max-w-[130px] font-mono text-[11px]">
+                            {domainName}
+                          </span>
+                          <ExternalLink className="w-3 h-3 shrink-0 text-slate-400 group-hover:text-cyan-400 transition-colors" />
+                        </a>
+                      );
+                    })}
                   </div>
                 </div>
               )}

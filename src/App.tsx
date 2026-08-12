@@ -74,7 +74,7 @@ export default function App() {
 
   const [prompt, setPrompt] = useState<string>("");
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>("llama-3.3-70b-versatile");
+  const [selectedModel, setSelectedModel] = useState<string>("gpt-oss-120b");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isCodeMode, setIsCodeMode] = useState<boolean>(false);
 

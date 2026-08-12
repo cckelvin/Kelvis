@@ -12,18 +12,122 @@ app.use(express.json({ limit: "50mb" }));
 
 // Normalize requested model to valid public Groq API model alias
 function normalizeGroqModelName(requestedModel?: string): string {
-  if (!requestedModel) return "llama-3.3-70b-versatile";
+  if (!requestedModel) return "deepseek-r1-distill-llama-70b";
   const m = String(requestedModel).toLowerCase();
   if (m.includes("gpt-oss") || m.includes("gptoss") || m.includes("oss-120b") || m.includes("code")) {
-    // Map Open GPT-OSS 120B to high-capability reasoning / coding model
-    return "qwen-2.5-32b" in Groq ? "qwen-2.5-coder-32b" : "deepseek-r1-distill-llama-70b";
+    return "deepseek-r1-distill-llama-70b";
   }
-  if (m.includes("deepseek") || m.includes("r1")) return "deepseek-r1-distill-llama-70b";
-  if (m.includes("8b") || m.includes("instant") || m.includes("lite") || m.includes("flash")) return "llama-3.1-8b-instant";
-  if (m.includes("mixtral") || m.includes("8x7b")) return "mixtral-8x7b-32768";
-  if (m.includes("gemma")) return "gemma2-9b-it";
-  if (m.includes("70b") || m.includes("versatile") || m.includes("pro") || m.includes("llama")) return "llama-3.3-70b-versatile";
-  return "llama-3.3-70b-versatile";
+  return "deepseek-r1-distill-llama-70b";
+}
+
+async function fetchLiveWebResults(query: string): Promise<Array<{ title: string; url: string; domain: string; snippet: string }>> {
+  const sources: Array<{ title: string; url: string; domain: string; snippet: string }> = [];
+
+  // Check Google Custom Search Engine (CSE) API keys
+  const apiKey =
+    process.env.GOOGLE_SEARCH_API_KEY ||
+    process.env.GOOGLE_CSE_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.GOOGLE_SEARCH_KEY;
+  const cx =
+    process.env.GOOGLE_CX ||
+    process.env.GOOGLE_CSE_ID ||
+    process.env.GOOGLE_SEARCH_CX;
+
+  if (apiKey && cx) {
+    try {
+      const gUrl = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&num=5`;
+      const resp = await fetch(gUrl);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.items && Array.isArray(data.items)) {
+          for (const item of data.items.slice(0, 5)) {
+            let domain = "google.com";
+            try {
+              domain = new URL(item.link).hostname.replace(/^www\./, "");
+            } catch (e) {}
+            sources.push({
+              title: item.title || domain,
+              url: item.link,
+              domain: domain,
+              snippet: item.snippet || "",
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Google Custom Search API error:", e);
+    }
+  }
+
+  // Fallback or supplementary DuckDuckGo API if Google CSE returns empty
+  if (sources.length === 0) {
+    try {
+      const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
+      const resp = await fetch(ddgUrl);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.AbstractURL && data.AbstractText) {
+          let domain = "duckduckgo.com";
+          try {
+            domain = new URL(data.AbstractURL).hostname.replace(/^www\./, "");
+          } catch (e) {}
+          sources.push({
+            title: data.Heading || query,
+            url: data.AbstractURL,
+            domain: domain,
+            snippet: data.AbstractText,
+          });
+        }
+        if (data.RelatedTopics && Array.isArray(data.RelatedTopics)) {
+          for (const topic of data.RelatedTopics.slice(0, 4)) {
+            if (topic.FirstURL && topic.Text) {
+              let domain = "duckduckgo.com";
+              try {
+                domain = new URL(topic.FirstURL).hostname.replace(/^www\./, "");
+              } catch (e) {}
+              sources.push({
+                title: topic.Text.slice(0, 60) + "...",
+                url: topic.FirstURL,
+                domain: domain,
+                snippet: topic.Text,
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("DuckDuckGo search error:", e);
+    }
+  }
+
+  // Secondary Fallback to Wikipedia API
+  if (sources.length === 0) {
+    try {
+      const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`;
+      const resp = await fetch(wikiUrl);
+      if (resp.ok) {
+        const data = await resp.json();
+        const searchHits = data.query?.search;
+        if (searchHits && Array.isArray(searchHits)) {
+          for (const hit of searchHits.slice(0, 4)) {
+            const pageUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(hit.title.replace(/ /g, "_"))}`;
+            const cleanSnippet = (hit.snippet || "").replace(/<[^>]+>/g, "");
+            sources.push({
+              title: hit.title,
+              url: pageUrl,
+              domain: "wikipedia.org",
+              snippet: cleanSnippet,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Wikipedia fallback search error:", e);
+    }
+  }
+
+  return sources;
 }
 
 // Initialize Groq Client
@@ -291,13 +395,60 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
     // Prepare messages for Groq completion
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
 
-    const defaultStructuredSystemInstruction =
-      "You are Kelvis, an expert AI assistant specialized in structured answers and high-performance software engineering. " +
-      "Guidelines for responses:\n" +
-      "1. Structure your responses with clean Markdown headers (`###`), bullet points, and concise sections.\n" +
-      "2. Highlight essential key terms using `==key phrase==` formatting.\n" +
-      "3. When writing code, provide complete, self-contained, fully working code blocks (e.g. ```html, ```javascript, ```typescript, ```python, etc.) so users can test or copy them.\n" +
-      "4. Be direct, clear, professional, and thorough.";
+    const defaultStructuredSystemInstruction = `You are Kelvis, an advanced AI assistant. Structure your responses clearly and naturally, similar to a high-quality modern AI assistant.
+
+1. General Response Structure
+- Answer the user's question directly before adding additional explanation.
+- Use short, readable paragraphs.
+- Break complex information into logical sections.
+- Do not put everything into one large paragraph.
+- Adapt the response length to the complexity of the question.
+- Avoid unnecessary repetition and filler.
+
+2. Markdown Formatting
+Use Markdown when it improves readability:
+- "## Headings" for major sections
+- "### Subheadings" for subsections
+- Bold for important concepts
+- Italic for emphasis when appropriate
+- Bullet lists for collections of information
+- Numbered lists for procedures or sequential instructions
+- Tables when comparing multiple items
+- ">" blockquotes when quoting text
+- "---" to separate major sections when useful
+- Do not over-format simple answers.
+
+3. Code
+When providing code:
+- Always use fenced code blocks with the language tag (e.g. \`\`\`typescript, \`\`\`python, \`\`\`html, \`\`\`css, \`\`\`javascript).
+- Keep explanations outside the code block.
+- Do not unnecessarily place ordinary text inside code blocks.
+
+4. Explanations
+For technical or difficult concepts:
+1. Give the simple answer first.
+2. Explain how it works.
+3. Give an example if useful.
+4. Mention important limitations or risks.
+Use simple language unless the user clearly wants technical depth.
+
+5. Comparisons
+When comparing things with several attributes, use a Markdown table followed by a short conclusion explaining the main difference.
+
+6. Questions With Multiple Parts
+If the user asks several questions, answer each part separately and preserve the order of the questions.
+
+7. Direct Answers
+For questions requiring a simple answer, answer directly without generating unnecessary extra sections.
+
+8. Uncertainty and Accuracy
+Never invent information. If information is uncertain, state clearly that it is uncertain and distinguish facts from assumptions.
+
+9. Conversational Style
+Sound natural and intelligent. Do NOT begin responses with generic filler such as "Certainly!", "Absolutely!", "Of course!", or "Great question!".
+
+10. Final Answer Quality
+Determine what the user is asking, what information is necessary, and what structure makes the answer easiest to understand.`;
 
     messages.push({
       role: "system",
@@ -322,6 +473,35 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
         .map((f: any) => `[Attached File: ${f.name || "attachment"} (${f.mimeType || "file"})]`)
         .join("\n");
       userMessageContent = fileSummary ? `${fileSummary}\n\n${userMessageContent}` : userMessageContent;
+    }
+
+    // Live Web Search Grounding trigger
+    let fetchedSources: Array<{ title: string; url: string; domain: string; snippet: string }> = [];
+    const needsSearch =
+      searchGrounding ||
+      /search|latest|recent|news|current|today|2025|2026|update|price|who is|what is|competitor|website|bouk|info|data|google/i.test(
+        prompt || ""
+      );
+
+    if (needsSearch && prompt) {
+      try {
+        fetchedSources = await fetchLiveWebResults(prompt);
+      } catch (sErr) {
+        console.warn("Live web search execution notice:", sErr);
+      }
+    }
+
+    if (fetchedSources.length > 0) {
+      const searchContextText =
+        "\n\n[Verified Live Web Search Context (Use this fresh data to answer accurately)]:\n" +
+        fetchedSources
+          .map(
+            (s, idx) =>
+              `Source ${idx + 1}: ${s.title}\nDomain: ${s.domain}\nURL: ${s.url}\nSnippet: ${s.snippet}`
+          )
+          .join("\n\n");
+
+      userMessageContent += searchContextText;
     }
 
     messages.push({
@@ -364,7 +544,7 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
     res.json({
       text: outputText,
       image: null,
-      sources: [],
+      sources: fetchedSources,
       spotifyTrack: spotifyTrackObj,
       modelUsed: selectedModel,
     });

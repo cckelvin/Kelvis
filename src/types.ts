@@ -8,6 +8,8 @@ export interface AttachedFile {
 export interface GroundingSource {
   title: string;
   url: string;
+  domain?: string;
+  snippet?: string;
 }
 
 export interface SpotifyTrack {
