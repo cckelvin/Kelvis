@@ -2,6 +2,27 @@ import { getSupabase, isSupabaseConfigured } from "./supabase";
 import { ChatSession, Message } from "../types";
 
 /**
+ * Ensures any string is formatted as a valid 36-character UUID v4 for Supabase PostgreSQL
+ */
+export function toValidUUID(id: string): string {
+  if (!id) return crypto.randomUUID();
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(id)) return id;
+
+  // Convert non-UUID string (like "session-1" or "msg-1723...") deterministically into valid UUID v4
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash << 5) - hash + id.charCodeAt(i);
+    hash |= 0;
+  }
+  const hex = Math.abs(hash).toString(16).padStart(8, "0");
+  const pad = "abcdef0123456789abcdef0123456789";
+  const fullHex = (hex + pad).slice(0, 32);
+
+  return `${fullHex.slice(0, 8)}-${fullHex.slice(8, 12)}-4${fullHex.slice(13, 16)}-a${fullHex.slice(17, 20)}-${fullHex.slice(20, 32)}`;
+}
+
+/**
  * Syncs user sessions from Supabase database if available
  */
 export async function fetchSupabaseSessions(): Promise<ChatSession[] | null> {
@@ -22,8 +43,13 @@ export async function fetchSupabaseSessions(): Promise<ChatSession[] | null> {
     }
 
     const { data: dbSessions, error: sessionErr } = await query;
-    if (sessionErr || !dbSessions || dbSessions.length === 0) {
+    if (sessionErr) {
+      console.warn("Supabase sessions query notice:", sessionErr);
       return null;
+    }
+
+    if (!dbSessions || dbSessions.length === 0) {
+      return [];
     }
 
     const formattedSessions: ChatSession[] = [];
@@ -48,7 +74,7 @@ export async function fetchSupabaseSessions(): Promise<ChatSession[] | null> {
       formattedSessions.push({
         id: s.id,
         title: s.title || "NEW CHAT",
-        model: s.model || "gemini-3.6-flash",
+        model: s.model || "gpt-oss-120b",
         updatedAt: s.updated_at ? new Date(s.updated_at).toLocaleDateString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : "Just now",
         messages,
       });
@@ -64,24 +90,31 @@ export async function fetchSupabaseSessions(): Promise<ChatSession[] | null> {
 /**
  * Save or update a session in Supabase
  */
-export async function saveSupabaseSession(session: ChatSession): Promise<void> {
+export async function saveSupabaseSession(session: ChatSession): Promise<string> {
   const supabase = getSupabase();
-  if (!supabase || !isSupabaseConfigured) return;
+  const validSessionId = toValidUUID(session.id);
+  if (!supabase || !isSupabaseConfigured) return validSessionId;
 
   try {
     const { data: { user } } = await supabase.auth.getUser();
 
     // Upsert session row
-    await supabase.from("chat_sessions").upsert({
-      id: session.id,
+    const { error } = await supabase.from("chat_sessions").upsert({
+      id: validSessionId,
       user_id: user?.id || null,
       title: session.title,
-      model: session.model || "gemini-3.6-flash",
+      model: session.model || "gpt-oss-120b",
       updated_at: new Date().toISOString(),
     });
+
+    if (error) {
+      console.warn("Supabase saveSession error:", error);
+    }
   } catch (err) {
     console.warn("Could not save session to Supabase:", err);
   }
+
+  return validSessionId;
 }
 
 /**
@@ -91,12 +124,15 @@ export async function saveSupabaseMessage(sessionId: string, message: Message): 
   const supabase = getSupabase();
   if (!supabase || !isSupabaseConfigured) return;
 
+  const validSessionId = toValidUUID(sessionId);
+  const validMessageId = toValidUUID(message.id);
+
   try {
     const { data: { user } } = await supabase.auth.getUser();
 
-    await supabase.from("messages").insert({
-      id: message.id,
-      session_id: sessionId,
+    const { error } = await supabase.from("messages").upsert({
+      id: validMessageId,
+      session_id: validSessionId,
       user_id: user?.id || null,
       role: message.role,
       text: message.text,
@@ -105,6 +141,10 @@ export async function saveSupabaseMessage(sessionId: string, message: Message): 
       files: message.files ? JSON.parse(JSON.stringify(message.files)) : null,
       timestamp: message.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     });
+
+    if (error) {
+      console.warn("Supabase saveMessage error:", error);
+    }
   } catch (err) {
     console.warn("Could not save message to Supabase:", err);
   }
@@ -117,10 +157,47 @@ export async function deleteSupabaseSession(sessionId: string): Promise<void> {
   const supabase = getSupabase();
   if (!supabase || !isSupabaseConfigured) return;
 
+  const validSessionId = toValidUUID(sessionId);
+
   try {
-    await supabase.from("chat_sessions").delete().eq("id", sessionId);
+    await supabase.from("chat_sessions").delete().eq("id", validSessionId);
   } catch (err) {
     console.warn("Could not delete session from Supabase:", err);
+  }
+}
+
+/**
+ * Subscribe to real-time changes across devices
+ */
+export function subscribeToSupabaseChats(onSync: () => void): () => void {
+  const supabase = getSupabase();
+  if (!supabase || !isSupabaseConfigured) return () => {};
+
+  try {
+    const channel = supabase
+      .channel("public:chat_sync")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "chat_sessions" },
+        () => {
+          onSync();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messages" },
+        () => {
+          onSync();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  } catch (e) {
+    console.warn("Realtime subscription setup notice:", e);
+    return () => {};
   }
 }
 
@@ -152,3 +229,4 @@ export async function uploadSupabaseFile(file: File): Promise<string | null> {
     return null;
   }
 }
+

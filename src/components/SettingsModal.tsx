@@ -75,6 +75,47 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             />
           </div>
 
+          {/* Custom Google Custom Search Engine (CSE) Settings */}
+          <div className="p-3.5 rounded-2xl bg-sky-500/5 dark:bg-sky-900/20 border border-sky-500/20 dark:border-sky-700/30 space-y-3">
+            <div className="flex items-center space-x-2 text-sky-700 dark:text-sky-300 font-bold text-xs">
+              <Globe className="w-4 h-4 text-sky-500" />
+              <span>Google Custom Search Engine Credentials</span>
+            </div>
+            
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                Google Search API Key
+              </label>
+              <input
+                type="password"
+                value={settings.customGoogleApiKey || ""}
+                onChange={(e) =>
+                  onUpdateSettings({ customGoogleApiKey: e.target.value })
+                }
+                placeholder="AIzaSy..."
+                className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-xl px-3 py-1.5 text-slate-800 dark:text-zinc-100 text-xs focus:outline-hidden font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                Google Search Engine ID (CX)
+              </label>
+              <input
+                type="text"
+                value={settings.customGoogleCx || ""}
+                onChange={(e) =>
+                  onUpdateSettings({ customGoogleCx: e.target.value })
+                }
+                placeholder="e.g. 017576564022800000000:abc123def"
+                className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-xl px-3 py-1.5 text-slate-800 dark:text-zinc-100 text-xs focus:outline-hidden font-mono"
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-tight">
+              Optional: Enter your own Google Custom Search API Key & CX ID. If left blank, the system uses default environment search fallbacks.
+            </p>
+          </div>
+
           {/* Auto Voice Readout Toggle */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-800">
             <div className="flex items-center space-x-2.5">

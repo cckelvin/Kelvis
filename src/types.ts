@@ -47,4 +47,6 @@ export interface AppSettings {
   autoVoiceRead: boolean;
   darkTheme: boolean;
   temperature: number;
+  customGoogleApiKey?: string;
+  customGoogleCx?: string;
 }

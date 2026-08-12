@@ -15,29 +15,31 @@ import {
   saveSupabaseSession,
   saveSupabaseMessage,
   deleteSupabaseSession,
+  toValidUUID,
+  subscribeToSupabaseChats,
 } from "./lib/supabaseSync";
 
 const INITIAL_SESSIONS: ChatSession[] = [
   {
-    id: "session-1",
+    id: toValidUUID("session-1"),
     title: "Kelvis Capabilities & Info",
     updatedAt: "Just now",
-    model: "gemini-3.6-flash",
+    model: "gpt-oss-120b",
     messages: [
       {
-        id: "msg-1",
+        id: toValidUUID("msg-1"),
         role: "user",
         text: "Who are you and what can you do?",
         timestamp: "12:00 PM",
       },
       {
-        id: "msg-2",
+        id: toValidUUID("msg-2"),
         role: "model",
         text: "I am **Kelvis**, an intelligent AI assistant! Here is what I can do:\n\n" +
           "- ==Live Code Execution & Previews==: Write HTML, JavaScript, CSS, or TypeScript code blocks and click **Run Preview** to test them live!\n" +
           "- ==File Analysis & Uploads==: Upload documents, code files, or images for deep analysis.\n" +
           "- ==Voice Calls & Speech-to-Text==: Talk naturally or have responses read aloud.\n" +
-          "- ==Supabase Data Syncing==: Persist conversations and session history securely.\n" +
+          "- ==Supabase Data Syncing==: Persist conversations and session history securely across all your devices.\n" +
           "- ==Search Grounding==: Fetch real-time web facts and verified information.\n\n" +
           "How can I assist you today?",
         timestamp: "12:00 PM",
@@ -113,16 +115,27 @@ export default function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
-  // Load sessions from Supabase if available
+  // Load sessions from Supabase & Subscribe to Realtime Updates across devices
   useEffect(() => {
-    fetchSupabaseSessions().then((dbSessions) => {
-      if (dbSessions && dbSessions.length > 0) {
-        setSessions(dbSessions);
-        if (!dbSessions.some((s) => s.id === activeSessionId)) {
-          setActiveSessionId(dbSessions[0].id);
+    const syncChats = () => {
+      fetchSupabaseSessions().then((dbSessions) => {
+        if (dbSessions && dbSessions.length > 0) {
+          setSessions(dbSessions);
+          setActiveSessionId((currentId) => {
+            if (dbSessions.some((s) => s.id === currentId)) {
+              return currentId;
+            }
+            return dbSessions[0].id;
+          });
         }
-      }
-    });
+      });
+    };
+
+    syncChats();
+    const unsubscribe = subscribeToSupabaseChats(syncChats);
+    return () => {
+      unsubscribe();
+    };
   }, [userEmail]);
 
   // Persist sessions locally as fallback
@@ -240,16 +253,16 @@ export default function App() {
 
   // Start New Chat
   const handleNewChat = () => {
-    const newId = `session-${Date.now()}`;
+    const validId = toValidUUID(`session-${Date.now()}`);
     const newSession: ChatSession = {
-      id: newId,
+      id: validId,
       title: "NEW CHAT",
       updatedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       model: selectedModel,
       messages: [],
     };
     setSessions((prev) => [newSession, ...prev]);
-    setActiveSessionId(newId);
+    setActiveSessionId(validId);
     setPrompt("");
     setAttachedFiles([]);
     saveSupabaseSession(newSession);
@@ -280,7 +293,7 @@ export default function App() {
     setAttachedFiles([]);
 
     const userMsg: Message = {
-      id: `msg-${Date.now()}`,
+      id: toValidUUID(`msg-user-${Date.now()}`),
       role: "user",
       text: currentPrompt,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -344,6 +357,8 @@ export default function App() {
           files: currentFiles,
           searchGrounding: settings.searchGrounding,
           systemInstruction: settings.systemInstruction,
+          googleApiKey: settings.customGoogleApiKey,
+          googleCx: settings.customGoogleCx,
         }),
       });
 
@@ -364,7 +379,7 @@ export default function App() {
       }
 
       const aiMsg: Message = {
-        id: `msg-${Date.now() + 1}`,
+        id: toValidUUID(`msg-ai-${Date.now() + 1}`),
         role: "model",
         text: data.text || "No response received.",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -474,7 +489,6 @@ export default function App() {
           onNewChat={handleNewChat}
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           onOpenOptionsMenu={() => setShowOptionsMenu(!showOptionsMenu)}
-          onOpenSpotify={() => setIsSpotifyOpen(true)}
           darkTheme={settings.darkTheme}
           onToggleTheme={toggleTheme}
         />

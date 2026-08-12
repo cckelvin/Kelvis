@@ -20,19 +20,27 @@ function normalizeGroqModelName(requestedModel?: string): string {
   return "deepseek-r1-distill-llama-70b";
 }
 
-async function fetchLiveWebResults(query: string): Promise<Array<{ title: string; url: string; domain: string; snippet: string }>> {
+async function fetchLiveWebResults(
+  query: string,
+  customApiKey?: string,
+  customCx?: string
+): Promise<Array<{ title: string; url: string; domain: string; snippet: string }>> {
   const sources: Array<{ title: string; url: string; domain: string; snippet: string }> = [];
 
-  // Check Google Custom Search Engine (CSE) API keys
+  // Check Google Custom Search Engine (CSE) API keys (custom parameters or environment variables)
   const apiKey =
+    customApiKey ||
     process.env.GOOGLE_SEARCH_API_KEY ||
     process.env.GOOGLE_CSE_KEY ||
     process.env.GOOGLE_API_KEY ||
     process.env.GOOGLE_SEARCH_KEY;
   const cx =
+    customCx ||
+    process.env.GOOGLE_CSE ||
     process.env.GOOGLE_CX ||
     process.env.GOOGLE_CSE_ID ||
-    process.env.GOOGLE_SEARCH_CX;
+    process.env.GOOGLE_SEARCH_CX ||
+    process.env.GOOGLE_SEARCH_CSE;
 
   if (apiKey && cx) {
     try {
@@ -361,6 +369,8 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
       files = [],
       searchGrounding = false,
       systemInstruction,
+      googleApiKey,
+      googleCx,
     } = req.body;
 
     if (!prompt && (!files || files.length === 0)) {
@@ -485,7 +495,7 @@ Determine what the user is asking, what information is necessary, and what struc
 
     if (needsSearch && prompt) {
       try {
-        fetchedSources = await fetchLiveWebResults(prompt);
+        fetchedSources = await fetchLiveWebResults(prompt, googleApiKey, googleCx);
       } catch (sErr) {
         console.warn("Live web search execution notice:", sErr);
       }
