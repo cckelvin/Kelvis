@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { CodePreviewModal, ProjectFile } from "./CodePreviewModal";
 import { ChartRenderer } from "./ChartRenderer";
+import { TradingViewChart } from "./TradingViewChart";
 
 interface ParsedFile {
   name: string;
@@ -357,6 +358,36 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                       const codeString = String(children).replace(/\n$/, "");
                       const blockIdx = Math.abs(codeString.length + (rawLang.length * 10));
 
+                      // Check if this is a live Binance or TradingView Chart specification
+                      if (
+                        !inline &&
+                        (rawLang === "binance" ||
+                          rawLang === "trading" ||
+                          rawLang === "crypto" ||
+                          rawLang === "candlestick" ||
+                          codeString.includes('"type": "binance"') ||
+                          codeString.includes('"type": "trading"') ||
+                          codeString.includes('"binance": true'))
+                      ) {
+                        try {
+                          let symbol = "BTCUSDT";
+                          let interval = "1m";
+                          if (codeString.trim().startsWith("{")) {
+                            const parsed = JSON.parse(codeString);
+                            if (parsed.symbol) symbol = parsed.symbol;
+                            if (parsed.interval) interval = parsed.interval;
+                          } else {
+                            const symMatch = codeString.match(/(BTC|ETH|SOL|BNB|XRP|DOGE|ADA|AVAX|LINK|NEAR|SUI|PEPE)(USDT)?/i);
+                            if (symMatch) {
+                              symbol = symMatch[1].toUpperCase() + (symMatch[2] ? symMatch[2].toUpperCase() : "USDT");
+                            }
+                          }
+                          return <TradingViewChart initialSymbol={symbol} initialInterval={interval} height={460} />;
+                        } catch (e) {
+                          return <TradingViewChart initialSymbol="BTCUSDT" initialInterval="1m" height={460} />;
+                        }
+                      }
+
                       // Check if this is an interactive Chart specification
                       if (
                         !inline &&
@@ -368,6 +399,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                       ) {
                         try {
                           const parsed = JSON.parse(codeString);
+                          if (parsed && (parsed.type === "binance" || parsed.symbol)) {
+                            return (
+                              <TradingViewChart
+                                initialSymbol={parsed.symbol || "BTCUSDT"}
+                                initialInterval={parsed.interval || "1m"}
+                                height={460}
+                              />
+                            );
+                          }
                           if (parsed && Array.isArray(parsed.data) && parsed.data.length > 0) {
                             return <ChartRenderer config={parsed} />;
                           }

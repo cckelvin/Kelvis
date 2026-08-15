@@ -10,8 +10,9 @@ import { AuthModal } from "./components/AuthModal";
 import { SqlSchemaModal } from "./components/SqlSchemaModal";
 import { SpotifyModal } from "./components/SpotifyModal";
 import { VoiceCallModal } from "./components/VoiceCallModal";
+import { BinanceMarketModal } from "./components/BinanceMarketModal";
 import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack } from "./types";
-import { Trash2, Download, RotateCcw, Sparkles, Code, Terminal, Info, BarChart3, Image as ImageIcon } from "lucide-react";
+import { Trash2, Download, RotateCcw, Sparkles, Code, Terminal, Info, BarChart3, Image as ImageIcon, Activity } from "lucide-react";
 import {
   fetchSupabaseSessions,
   saveSupabaseSession,
@@ -39,6 +40,7 @@ const INITIAL_SESSIONS: ChatSession[] = [
         role: "model",
         text: "I am **Kelvis**, an intelligent AI assistant! Here is what I can do:\n\n" +
           "- ==Live Code Execution & Previews==: Write HTML, JavaScript, CSS, or TypeScript code blocks and click **Run Preview** to test them live!\n" +
+          "- ==Live Binance Crypto Market Data==: Stream live candlestick charts, EMA, RSI, MACD, and Bollinger Bands with zero API keys required!\n" +
           "- ==File Analysis & Uploads==: Upload documents, code files, or images for deep analysis.\n" +
           "- ==Voice Calls & Speech-to-Text==: Talk naturally or have responses read aloud.\n" +
           "- ==Supabase Data Syncing==: Persist conversations and session history securely across all your devices.\n" +
@@ -52,7 +54,7 @@ const INITIAL_SESSIONS: ChatSession[] = [
 
 const DEFAULT_SETTINGS: AppSettings = {
   systemInstruction:
-    "You are Kelvis, a smart, creative, and highly capable AI assistant. Never call yourself Gemini. You identify strictly as Kelvis. When writing HTML, CSS, JavaScript, or TypeScript, provide complete runnable code blocks inside ``` language boxes so the user can test them with the Run Preview button.",
+    "You are Kelvis, a smart, helpful, and creative AI assistant. You identify strictly as Kelvis. Only write code or generate code blocks when the user explicitly asks for code, programming, or scripts. For general questions, explanations, discussions, or creative writing, respond naturally in clear text without unsolicited code blocks.",
   searchGrounding: true,
   autoVoiceRead: false,
   darkTheme: false,
@@ -89,6 +91,7 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
   const [isSqlModalOpen, setIsSqlModalOpen] = useState<boolean>(false);
   const [isSpotifyOpen, setIsSpotifyOpen] = useState<boolean>(false);
+  const [isBinanceModalOpen, setIsBinanceModalOpen] = useState<boolean>(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showOptionsMenu, setShowOptionsMenu] = useState<boolean>(false);
 
@@ -345,17 +348,8 @@ export default function App() {
     saveSupabaseSession(updatedSession);
     saveSupabaseMessage(activeSessionId, userMsg);
 
-    // Detect coding intent or code mode
-    const isCodingQuery =
-      isCodeMode ||
-      /code|function|html|css|javascript|typescript|python|react|component|build|script|class|interface|sql|algorithm|bug|fix|developer|program/i.test(
-        currentPrompt
-      );
-
-    const modelToUse = isCodingQuery ? "gpt-oss-120b" : selectedModel;
-    if (isCodingQuery && selectedModel !== "gpt-oss-120b") {
-      setSelectedModel("gpt-oss-120b");
-    }
+    // Use selected model, or gpt-oss-120b if Code Mode is explicitly activated
+    const modelToUse = isCodeMode ? "gpt-oss-120b" : selectedModel;
 
     setIsLoading(true);
 
@@ -573,6 +567,7 @@ export default function App() {
         onOpenNotifications={() => setIsNotificationsOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
         userEmail={userEmail}
+        onOpenBinanceMarket={() => setIsBinanceModalOpen(true)}
       />
 
       {/* Main Window Container matching sketch top rectangle */}
@@ -585,6 +580,7 @@ export default function App() {
           onOpenOptionsMenu={() => setShowOptionsMenu(!showOptionsMenu)}
           darkTheme={settings.darkTheme}
           onToggleTheme={toggleTheme}
+          onOpenBinanceMarket={() => setIsBinanceModalOpen(true)}
         />
 
         {/* 3-Dots Options Menu Popup */}
@@ -649,18 +645,28 @@ export default function App() {
               {/* Action Quick Starters */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left">
                 <button
-                  onClick={() => setPrompt("Generate an interactive quarterly revenue and profit growth chart for tech companies")}
+                  onClick={() => setIsBinanceModalOpen(true)}
+                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-amber-500 dark:hover:border-amber-500 text-xs transition-all shadow-2xs group cursor-pointer"
+                >
+                  <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
+                    <Activity className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
+                    <span>Binance Live Market</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">Live Candlesticks, EMA, RSI & MACD</div>
+                </button>
+                <button
+                  onClick={() => setPrompt("Show live Binance BTCUSDT candlestick chart with EMA, RSI and MACD")}
                   className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 text-xs transition-all shadow-2xs group cursor-pointer"
                 >
                   <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
                     <BarChart3 className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
-                    <span>Interactive Data Charts</span>
+                    <span>Crypto Analysis & Chart</span>
                   </div>
-                  <div className="text-[11px] text-slate-400">Generate dynamic bar & line charts</div>
+                  <div className="text-[11px] text-slate-400">Embed live Binance streams in chat</div>
                 </button>
                 <button
                   onClick={() => setPrompt("Generate an image of a futuristic cyberpunk city with neon lights and flying vehicles")}
-                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 text-xs transition-all shadow-2xs group cursor-pointer"
+                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-indigo-500 dark:hover:border-indigo-500 text-xs transition-all shadow-2xs group cursor-pointer"
                 >
                   <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
                     <ImageIcon className="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform" />
@@ -670,23 +676,13 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setPrompt("Code a modern task manager web app with HTML, CSS, and JS")}
-                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 text-xs transition-all shadow-2xs group cursor-pointer"
+                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-amber-500 dark:hover:border-amber-500 text-xs transition-all shadow-2xs group cursor-pointer"
                 >
                   <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
                     <Code className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
                     <span>Bolt Web App Code</span>
                   </div>
                   <div className="text-[11px] text-slate-400">Multi-file generation & live sandbox</div>
-                </button>
-                <button
-                  onClick={() => setPrompt("Explain who Kelvis is and what key features you support")}
-                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 text-xs transition-all shadow-2xs group cursor-pointer"
-                >
-                  <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
-                    <Info className="w-4 h-4 text-sky-500 group-hover:scale-110 transition-transform" />
-                    <span>Kelvis Info & Features</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400">Learn what Kelvis can do</div>
                 </button>
               </div>
             </div>
@@ -818,6 +814,12 @@ export default function App() {
         isOpen={isSpotifyOpen}
         onClose={() => setIsSpotifyOpen(false)}
         onSelectTrackToPlay={handlePlaySelectedTrack}
+      />
+
+      {/* Binance Live Market Modal */}
+      <BinanceMarketModal
+        isOpen={isBinanceModalOpen}
+        onClose={() => setIsBinanceModalOpen(false)}
       />
 
       {/* Live Full Voice Call Modal */}

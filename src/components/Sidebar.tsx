@@ -10,6 +10,7 @@ import {
   X,
   Sparkles,
   User,
+  Activity,
 } from "lucide-react";
 import { ChatSession } from "../types";
 
@@ -25,6 +26,7 @@ interface SidebarProps {
   onOpenNotifications: () => void;
   onOpenAuth: () => void;
   userEmail?: string | null;
+  onOpenBinanceMarket?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -39,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenNotifications,
   onOpenAuth,
   userEmail,
+  onOpenBinanceMarket,
 }) => {
   if (!isOpen) return null;
 
@@ -115,6 +118,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Quick Binance Market Launcher */}
+        {onOpenBinanceMarket && (
+          <div className="px-3 pt-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                onOpenBinanceMarket();
+                if (window.innerWidth < 1024) onClose();
+              }}
+              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-300 transition-all text-xs font-semibold group cursor-pointer"
+            >
+              <div className="flex items-center space-x-2">
+                <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-500 flex items-center justify-center">
+                  <Activity className="w-3.5 h-3.5" />
+                </div>
+                <span>Binance Live Market</span>
+              </div>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                WS Live
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Section title */}
         <div className="px-4 pt-3 pb-1 text-xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider flex items-center justify-between">

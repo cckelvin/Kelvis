@@ -1,6 +1,6 @@
 {
   "name": "Kelvis AI Assistant",
-  "description": "An AI chat application strictly following the user provided hand-drawn design, controls, icons, and model features.",
+  "description": "An AI chat application strictly following the hand-drawn design, featuring live Binance WebSocket market data charts, local technical indicators (EMA, RSI, MACD, Bollinger Bands), speech synthesis, and live previews.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

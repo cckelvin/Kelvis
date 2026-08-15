@@ -1,5 +1,5 @@
 import React from "react";
-import { MoreVertical, Menu, Plus, Sun, Moon } from "lucide-react";
+import { MoreVertical, Menu, Plus, Sun, Moon, Activity } from "lucide-react";
 
 interface HeaderProps {
   chatTitle: string;
@@ -8,6 +8,7 @@ interface HeaderProps {
   onOpenOptionsMenu: () => void;
   darkTheme?: boolean;
   onToggleTheme?: () => void;
+  onOpenBinanceMarket?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,6 +18,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenOptionsMenu,
   darkTheme,
   onToggleTheme,
+  onOpenBinanceMarket,
 }) => {
   return (
     <header className="bg-slate-50/90 dark:bg-zinc-900/90 backdrop-blur-md px-4 py-3 flex items-center justify-between select-none relative border-b border-slate-200/50 dark:border-zinc-800/50">
@@ -39,8 +41,21 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="h-[2px] bg-slate-700 dark:bg-zinc-300 w-1/2 max-w-[50%] ml-2 rounded-full opacity-80" />
       </div>
 
-      {/* Right side: Theme Toggle + NEW CHAT pill button + 3-dots options menu */}
+      {/* Right side: Binance Market + Theme Toggle + NEW CHAT pill button + 3-dots options menu */}
       <div className="flex items-center space-x-2 shrink-0">
+        {/* Binance Live Market Button */}
+        {onOpenBinanceMarket && (
+          <button
+            type="button"
+            onClick={onOpenBinanceMarket}
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 transition-colors cursor-pointer"
+            title="Open Live Binance Market Data & Charts"
+          >
+            <Activity className="w-3.5 h-3.5 text-amber-500" />
+            <span className="hidden sm:inline">Binance Live</span>
+          </button>
+        )}
+
         {/* Quick Theme Toggle Button */}
         {onToggleTheme && (
           <button

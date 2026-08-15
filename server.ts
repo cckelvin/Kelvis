@@ -174,6 +174,41 @@ app.get(["/api/health", "/health"], (req, res) => {
   res.json({ status: "ok", groqConfigured: hasKey, provider: "groq" });
 });
 
+// Binance Public Market Data Proxy Routes (Zero API Key / Unauthenticated)
+app.get("/api/binance/klines", async (req, res) => {
+  const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const interval = String(req.query.interval || "1m");
+  const limit = Math.min(Number(req.query.limit) || 100, 500);
+
+  try {
+    const binanceUrl = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+    const response = await fetch(binanceUrl);
+    if (!response.ok) {
+      return res.status(response.status).json({ error: "Failed to fetch from Binance" });
+    }
+    const data = await response.json();
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Internal error fetching Binance klines" });
+  }
+});
+
+app.get("/api/binance/ticker", async (req, res) => {
+  const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+  try {
+    const binanceUrl = `https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`;
+    const response = await fetch(binanceUrl);
+    if (!response.ok) {
+      return res.status(response.status).json({ error: "Failed to fetch 24hr ticker from Binance" });
+    }
+    const data = await response.json();
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Internal error fetching Binance ticker" });
+  }
+});
+
 // Spotify Search & Embed Helper
 async function searchSpotifyTrack(query: string) {
   const cleanQuery = query.replace(/^(play|listen to|put on|song|track|music)\s+/i, "").trim();
@@ -448,84 +483,44 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
     // Prepare messages for Groq completion
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
 
-    const defaultStructuredSystemInstruction = `You are Kelvis, an expert AI engineer, data analyst, and intelligent assistant. You provide exceptionally accurate, production-ready, clean, and elegant code, rich visual data representations, and comprehensive answers.
+    const defaultStructuredSystemInstruction = `You are Kelvis, a smart, creative, and highly capable AI assistant.
 
-### 1. INTERACTIVE DATA VISUALIZATIONS & CHARTS (HIGH PRIORITY):
-Whenever the user asks for charts, data comparisons, market trends, revenue/cost breakdown, surveys, analytics, or stats — or when analyzing uploaded CSV/data files — ALWAYS provide interactive, clean charts instead of just raw text tables!
-Format charts strictly using a \`\`\`chart code block with valid JSON conforming to this format:
+### 1. CODE GENERATION SCOPE (CRITICAL):
+- **Only write code when explicitly requested**: Do NOT output code blocks, HTML, CSS, JavaScript, Python, or scripts unless the user explicitly asks you to code, program, build a script, or debug code.
+- **For general conversations, questions, advice, summaries, or explanations**: Respond in natural, articulate text without unsolicited code blocks.
+- **When the user DOES explicitly request code**:
+  - Provide clean, complete, fully working code blocks with proper language syntax fences (e.g., \`\`\`html, \`\`\`css, \`\`\`javascript, \`\`\`python).
+  - Ensure the code is runnable with zero placeholders.
 
-For Bar / Line / Area Charts:
+### 2. LIVE BINANCE MARKET DATA & CANDLESTICK CHARTS:
+When the user asks for live Binance cryptocurrency market data, prices, candlestick charts, or technical analysis (e.g. BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, etc.), embed the live interactive Binance WebSocket candlestick chart directly in your response using:
+\`\`\`binance
+BTCUSDT
+\`\`\`
+or with a specific interval (1m, 5m, 15m, 1h, 4h, 1D):
+\`\`\`binance
+{ "symbol": "ETHUSDT", "interval": "5m" }
+\`\`\`
+The application will automatically connect to Binance's public WebSocket, render live real-time OHLCV candles, and locally calculate Exponential Moving Averages (EMA 9, 21, 50), Relative Strength Index (RSI 14), Moving Average Convergence Divergence (MACD 12, 26, 9), and Bollinger Bands (20, 2) without any API keys.
+
+### 3. INTERACTIVE CHARTS & VISUALIZATIONS:
+When the user explicitly asks for general data charts, graphs, or statistical data comparison, format using a \`\`\`chart block with valid JSON:
 \`\`\`chart
 {
   "type": "bar",
-  "title": "Quarterly Performance & Growth",
-  "description": "Comparative breakdown across key metrics",
-  "xKey": "quarter",
+  "title": "Data Overview",
+  "description": "Metric comparison",
+  "xKey": "category",
   "data": [
-    { "quarter": "Q1", "Revenue": 45000, "Expenses": 28000, "Profit": 17000 },
-    { "quarter": "Q2", "Revenue": 62000, "Expenses": 34000, "Profit": 28000 },
-    { "quarter": "Q3", "Revenue": 81000, "Expenses": 42000, "Profit": 39000 },
-    { "quarter": "Q4", "Revenue": 98000, "Expenses": 49000, "Profit": 49000 }
+    { "category": "A", "Value": 100 },
+    { "category": "B", "Value": 150 }
   ],
-  "keys": ["Revenue", "Expenses", "Profit"],
-  "unit": "$"
+  "keys": ["Value"]
 }
 \`\`\`
 
-For Pie / Donut Charts:
-\`\`\`chart
-{
-  "type": "pie",
-  "title": "Market Share Distribution",
-  "description": "Category percentage allocation",
-  "data": [
-    { "name": "Category A", "value": 45 },
-    { "name": "Category B", "value": 25 },
-    { "name": "Category C", "value": 18 },
-    { "name": "Other", "value": 12 }
-  ],
-  "unit": "%"
-}
-\`\`\`
-
----
-
-### 2. DEEP FILE & DATA ANALYSIS:
-When the user attaches or uploads files (CSV, JSON, Code, Text, Documents, Images):
-- Inspect the file contents thoroughly.
-- Identify patterns, calculate key metrics, statistics, min/max, averages, and anomalies.
-- Present executive summaries, structured bullet points, and render corresponding interactive charts.
-
----
-
-### 3. CODE & PROJECT GENERATION RULES (BOLT-GRADE):
-When the user asks you to code, build, or create a website, web app, script, or component (e.g. "code a chatting website", "make a dashboard"):
-1. **Initial Acknowledgment**:
-   - Begin immediately with a brief line: e.g. "Okay, I'll start coding your website now."
-
-2. **Planning & Architecture Strategy (<plan> block)**:
-   - Provide your step-by-step thinking inside a \`<plan> ... </plan>\` block.
-   - Outline the architecture, design system, functions, and file breakdown (index.html, style.css, app.js).
-
-3. **Implementation with Section Headers & Named Code Blocks**:
-   - Introduce each section with a heading (e.g. "### 📂 Main Structure", "### 🎨 Styling & Theme", "### ⚡ Application Logic").
-   - Always put the exact filename on the code fence:
-     \`\`\`html index.html
-     <!DOCTYPE html>
-     ...
-     \`\`\`
-     \`\`\`css style.css
-     /* Styles */
-     ...
-     \`\`\`
-     \`\`\`javascript app.js
-     // Logic
-     ...
-     \`\`\`
-   - Write 100% complete, fully working code with zero placeholders.
-
-4. **Final Friendly Wrap-up**:
-   - Conclude with a helpful summary in standard text offering further tweaks.`;
+### 4. FILE ATTACHMENTS & ANALYSIS:
+When the user attaches files, analyze the contents thoroughly and summarize key insights or statistics clearly.`;
 
     messages.push({
       role: "system",
