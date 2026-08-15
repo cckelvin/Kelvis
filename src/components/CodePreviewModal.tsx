@@ -13,6 +13,11 @@ import {
   FileArchive,
   Layers,
   Sparkles,
+  Smartphone,
+  Tablet,
+  Monitor,
+  Globe,
+  Lock,
 } from "lucide-react";
 import JSZip from "jszip";
 
@@ -57,6 +62,7 @@ export const CodePreviewModal: React.FC<CodePreviewModalProps> = ({
   const [selectedFileName, setSelectedFileName] = useState<string>(
     initialActiveFile || (allFiles[0] ? allFiles[0].name : "index.html")
   );
+  const [deviceMode, setDeviceMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [copiedFile, setCopiedFile] = useState<boolean>(false);
   const [isZipping, setIsZipping] = useState<boolean>(false);
   const [renderKey, setRenderKey] = useState<number>(0);
@@ -400,16 +406,80 @@ export const CodePreviewModal: React.FC<CodePreviewModalProps> = ({
         {/* Main Content Body */}
         <div className="flex-1 bg-white dark:bg-zinc-950 w-full relative overflow-hidden flex flex-col">
           {activeTab === "preview" ? (
-            /* Live Interactive Sandbox */
-            <div className="w-full h-full relative bg-white dark:bg-zinc-950">
-              <iframe
-                key={renderKey}
-                id="code-preview-iframe"
-                title="Code Sandbox Live Runner"
-                srcDoc={getCompiledBundleHtml()}
-                sandbox="allow-scripts allow-modals allow-forms allow-same-origin"
-                className="w-full h-full border-none"
-              />
+            /* Live Interactive Sandbox with Bolt-style browser toolbar */
+            <div className="w-full h-full flex flex-col bg-slate-900/40 dark:bg-zinc-950">
+              {/* Browser Address & Viewport Bar */}
+              <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 text-xs gap-2">
+                {/* Simulated URL Bar */}
+                <div className="flex-1 max-w-lg flex items-center space-x-1.5 px-3 py-1 bg-white dark:bg-zinc-950 rounded-xl border border-slate-300 dark:border-zinc-700/80 text-[11px] font-mono text-slate-700 dark:text-zinc-300 shadow-2xs">
+                  <Lock className="w-3 h-3 text-emerald-500 shrink-0" />
+                  <span className="truncate">
+                    https://{projectName.toLowerCase().replace(/[^a-z0-9]/g, "-") || "sandbox"}.bolt.preview/
+                  </span>
+                </div>
+
+                {/* Device Viewport Mode Switcher */}
+                <div className="flex items-center space-x-1 bg-slate-200/80 dark:bg-zinc-800 p-0.5 rounded-lg border border-slate-300 dark:border-zinc-700">
+                  <button
+                    type="button"
+                    onClick={() => setDeviceMode("desktop")}
+                    className={`p-1 rounded-md transition-all cursor-pointer ${
+                      deviceMode === "desktop"
+                        ? "bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-2xs"
+                        : "text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    }`}
+                    title="Desktop Viewport (100%)"
+                  >
+                    <Monitor className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeviceMode("tablet")}
+                    className={`p-1 rounded-md transition-all cursor-pointer ${
+                      deviceMode === "tablet"
+                        ? "bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-2xs"
+                        : "text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    }`}
+                    title="Tablet Viewport (768px)"
+                  >
+                    <Tablet className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeviceMode("mobile")}
+                    className={`p-1 rounded-md transition-all cursor-pointer ${
+                      deviceMode === "mobile"
+                        ? "bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-2xs"
+                        : "text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    }`}
+                    title="Mobile Viewport (390px)"
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Responsive Iframe Sandbox Container */}
+              <div className="flex-1 w-full h-full flex items-center justify-center p-2 sm:p-4 overflow-auto bg-slate-200/50 dark:bg-zinc-950">
+                <div
+                  className={`h-full transition-all duration-200 bg-white rounded-xl overflow-hidden shadow-md flex flex-col ${
+                    deviceMode === "mobile"
+                      ? "w-[390px] max-w-full border-4 border-slate-800 dark:border-zinc-700 rounded-3xl shadow-xl"
+                      : deviceMode === "tablet"
+                      ? "w-[768px] max-w-full border-2 border-slate-700 dark:border-zinc-700 rounded-2xl shadow-lg"
+                      : "w-full"
+                  }`}
+                >
+                  <iframe
+                    key={renderKey}
+                    id="code-preview-iframe"
+                    title="Code Sandbox Live Runner"
+                    srcDoc={getCompiledBundleHtml()}
+                    sandbox="allow-scripts allow-modals allow-forms allow-same-origin"
+                    className="w-full h-full border-none bg-white"
+                  />
+                </div>
+              </div>
             </div>
           ) : (
             /* Code Inspector View */

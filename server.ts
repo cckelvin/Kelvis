@@ -139,8 +139,9 @@ async function fetchLiveWebResults(
 }
 
 // Initialize Groq Client
-function getGroqClient() {
+function getGroqClient(customKey?: string) {
   const apiKey =
+    customKey ||
     process.env.GROQ_API_KEY ||
     process.env.groq_api_key ||
     process.env.GROQ_KEY ||
@@ -357,20 +358,50 @@ app.post(["/api/spotify/search", "/spotify/search"], async (req, res) => {
   }
 });
 
+// Image Generation Helper using Pollinations FLUX engine
+function generateAIPictureUrl(prompt: string): string {
+  const cleanPrompt = encodeURIComponent(
+    prompt.replace(/^(generate|create|draw|make|show me)\s+(an?\s+)?(image|picture|photo|illustration|drawing|visual)\s+(of\s+)?/i, "").trim() || prompt
+  );
+  const seed = Math.floor(Math.random() * 1000000);
+  return `https://image.pollinations.ai/prompt/${cleanPrompt}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
+}
+
+// Dedicated Image Generation API
+app.post(["/api/generate-image", "/generate-image"], async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    if (!prompt) {
+      res.status(400).json({ error: "Prompt is required for image generation" });
+      return;
+    }
+    const imageUrl = generateAIPictureUrl(prompt);
+    res.json({
+      success: true,
+      imageUrl,
+      prompt,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to generate image" });
+  }
+});
+
 // Main Chat Endpoint
 app.post(["/api/chat", "/chat"], async (req, res) => {
   res.setHeader("Content-Type", "application/json");
   let spotifyTrackObj: any = null;
+  let generatedImageUrl: string | null = null;
   try {
     const {
       prompt,
       history = [],
       model = "llama-3.3-70b-versatile",
       files = [],
-      searchGrounding = false,
+      searchGrounding = true,
       systemInstruction,
       googleApiKey,
       googleCx,
+      groqApiKey,
     } = req.body;
 
     if (!prompt && (!files || files.length === 0)) {
@@ -380,21 +411,33 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
 
     // Check if music play intent is present
     const isMusicIntent = prompt && /\b(play|song|music|spotify|listen to|put on|track)\b/i.test(prompt);
-
     if (isMusicIntent) {
       spotifyTrackObj = await searchSpotifyTrack(prompt);
     }
 
-    const groq = getGroqClient();
+    // Check if image generation intent is present
+    const isImageIntent =
+      prompt &&
+      /\b(generate|create|draw|make|render|illustrate)\b.*\b(image|picture|photo|artwork|illustration|logo|wallpaper|drawing|graphic)\b/i.test(
+        prompt
+      );
+    if (isImageIntent) {
+      generatedImageUrl = generateAIPictureUrl(prompt);
+    }
+
+    const groq = getGroqClient(groqApiKey);
 
     if (!groq) {
       let outputText = "⚠️ **Groq API Key Missing**\n\nYour application is configured to use Groq, but `GROQ_API_KEY` has not been added to your environment variables.\n\n**To enable Groq AI responses on https://kelvis.vercel.app:**\n1. Get your free API key at [Groq Console](https://console.groq.com/)\n2. Open your **Vercel Dashboard** -> Select your **kelvis** project.\n3. Go to **Settings** -> **Environment Variables** -> Add Name: `GROQ_API_KEY`.\n4. Save and click **Redeploy** on Vercel.";
       if (spotifyTrackObj) {
         outputText += `\n\n==Now Playing on Spotify==: **${spotifyTrackObj.title}** by ${spotifyTrackObj.artist}. Enjoy the music below!`;
       }
+      if (generatedImageUrl) {
+        outputText += `\n\n![Generated Image](${generatedImageUrl})\n*Generated Image with AI*`;
+      }
       res.json({
         text: outputText,
-        image: null,
+        image: generatedImageUrl,
         sources: [],
         spotifyTrack: spotifyTrackObj,
         modelUsed: "notice",
@@ -405,55 +448,84 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
     // Prepare messages for Groq completion
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
 
-    const defaultStructuredSystemInstruction = `You are Kelvis, an expert AI engineer and intelligent assistant. You provide exceptionally accurate, production-ready, clean, and elegant code and answers.
+    const defaultStructuredSystemInstruction = `You are Kelvis, an expert AI engineer, data analyst, and intelligent assistant. You provide exceptionally accurate, production-ready, clean, and elegant code, rich visual data representations, and comprehensive answers.
 
-### CODE & PROJECT GENERATION RULES (CRITICAL):
-When the user asks you to code, build, or create a website, web app, script, component, or system (e.g., "code a chatting website", "make a portfolio", "create a game"):
+### 1. INTERACTIVE DATA VISUALIZATIONS & CHARTS (HIGH PRIORITY):
+Whenever the user asks for charts, data comparisons, market trends, revenue/cost breakdown, surveys, analytics, or stats — or when analyzing uploaded CSV/data files — ALWAYS provide interactive, clean charts instead of just raw text tables!
+Format charts strictly using a \`\`\`chart code block with valid JSON conforming to this format:
+
+For Bar / Line / Area Charts:
+\`\`\`chart
+{
+  "type": "bar",
+  "title": "Quarterly Performance & Growth",
+  "description": "Comparative breakdown across key metrics",
+  "xKey": "quarter",
+  "data": [
+    { "quarter": "Q1", "Revenue": 45000, "Expenses": 28000, "Profit": 17000 },
+    { "quarter": "Q2", "Revenue": 62000, "Expenses": 34000, "Profit": 28000 },
+    { "quarter": "Q3", "Revenue": 81000, "Expenses": 42000, "Profit": 39000 },
+    { "quarter": "Q4", "Revenue": 98000, "Expenses": 49000, "Profit": 49000 }
+  ],
+  "keys": ["Revenue", "Expenses", "Profit"],
+  "unit": "$"
+}
+\`\`\`
+
+For Pie / Donut Charts:
+\`\`\`chart
+{
+  "type": "pie",
+  "title": "Market Share Distribution",
+  "description": "Category percentage allocation",
+  "data": [
+    { "name": "Category A", "value": 45 },
+    { "name": "Category B", "value": 25 },
+    { "name": "Category C", "value": 18 },
+    { "name": "Other", "value": 12 }
+  ],
+  "unit": "%"
+}
+\`\`\`
+
+---
+
+### 2. DEEP FILE & DATA ANALYSIS:
+When the user attaches or uploads files (CSV, JSON, Code, Text, Documents, Images):
+- Inspect the file contents thoroughly.
+- Identify patterns, calculate key metrics, statistics, min/max, averages, and anomalies.
+- Present executive summaries, structured bullet points, and render corresponding interactive charts.
+
+---
+
+### 3. CODE & PROJECT GENERATION RULES (BOLT-GRADE):
+When the user asks you to code, build, or create a website, web app, script, or component (e.g. "code a chatting website", "make a dashboard"):
 1. **Initial Acknowledgment**:
-   - Begin immediately with a brief, friendly line: e.g. "Okay, I'll start coding your website now." or "I'm on it! I'll start coding your project now."
+   - Begin immediately with a brief line: e.g. "Okay, I'll start coding your website now."
 
 2. **Planning & Architecture Strategy (<plan> block)**:
-   - Provide your step-by-step thinking and architectural blueprint inside a \`<plan> ... </plan>\` block.
-   - Outline the requirements, design system, key functions to implement, and the file breakdown.
-   - Example format:
-   <plan>
-   The user wants a chatting website.
-   - Architecture Strategy: We need a responsive HTML5 structure, modern CSS styles with chat bubbles, sidebar, user status, and client-side JavaScript for message handling, typing indicators, contact switching, and sound effects.
-   - Files to build:
-     1. index.html (Main Layout & Structure)
-     2. style.css (Modern Chat Theme & Responsive Design)
-     3. app.js (Real-time Messaging State & Simulation)
-   </plan>
+   - Provide your step-by-step thinking inside a \`<plan> ... </plan>\` block.
+   - Outline the architecture, design system, functions, and file breakdown (index.html, style.css, app.js).
 
-3. **Step-by-step Implementation with Section Headers & Named Code Blocks**:
-   - Introduce each section with a clear heading (e.g. "### 📂 Main Structure", "### 🎨 Styling & Theme", "### ⚡ Application Logic").
-   - Write a short conversational lead-in: e.g. "I'll start with the website structure for the chatting web in \`index.html\`:"
-   - Always put the filename right next to the language tag on the code fence:
+3. **Implementation with Section Headers & Named Code Blocks**:
+   - Introduce each section with a heading (e.g. "### 📂 Main Structure", "### 🎨 Styling & Theme", "### ⚡ Application Logic").
+   - Always put the exact filename on the code fence:
      \`\`\`html index.html
      <!DOCTYPE html>
      ...
      \`\`\`
      \`\`\`css style.css
-     /* CSS Styles */
+     /* Styles */
      ...
      \`\`\`
      \`\`\`javascript app.js
-     // JavaScript Application Logic
+     // Logic
      ...
      \`\`\`
-   - **CODE ACCURACY & COMPLETENESS**: Write 100% complete, fully working, robust code. Never leave placeholders, never use \`// ... rest of code here\`, and ensure HTML, CSS, and JS connect seamlessly together.
+   - Write 100% complete, fully working code with zero placeholders.
 
 4. **Final Friendly Wrap-up**:
-   - Conclude with a helpful summary in standard text:
-     "I've created the website for you and added all the core chat features, interactive message sending, and responsive styles! Use the Run Preview button to test it live or Download to export the files. Tell me if you need any changes or additional features."
-
----
-
-### GENERAL GUIDELINES:
-- **Tone**: Professional, clear, concise, and helpful.
-- **Directness**: Answer direct questions without fluff or generic intros like "Certainly!" or "Great question!".
-- **Markdown**: Use clean headings, bolding, and bullet lists for readability.
-- **Accuracy**: Distinguish facts from assumptions. Ensure code is error-free and modern.`;
+   - Conclude with a helpful summary in standard text offering further tweaks.`;
 
     messages.push({
       role: "system",
@@ -471,13 +543,42 @@ When the user asks you to code, build, or create a website, web app, script, com
       }
     }
 
-    // Add file metadata / descriptions if attachments are provided
+    // Process file attachments and extract real content
     let userMessageContent = prompt || "";
     if (files && files.length > 0) {
-      const fileSummary = files
-        .map((f: any) => `[Attached File: ${f.name || "attachment"} (${f.mimeType || "file"})]`)
-        .join("\n");
-      userMessageContent = fileSummary ? `${fileSummary}\n\n${userMessageContent}` : userMessageContent;
+      let fileContext = "\n\n=== UPLOADED ATTACHMENTS FOR ANALYSIS ===";
+      for (const file of files) {
+        fileContext += `\n\n📄 [File: ${file.name} (${file.mimeType || "application/octet-stream"}) - ${Math.round((file.size || 0) / 1024)} KB]:\n`;
+        if (file.data) {
+          // If text-based file (JSON, CSV, JS, TS, HTML, CSS, TXT, MD, Python, etc.)
+          if (
+            file.mimeType?.includes("text") ||
+            file.mimeType?.includes("json") ||
+            file.mimeType?.includes("csv") ||
+            file.mimeType?.includes("javascript") ||
+            file.mimeType?.includes("typescript") ||
+            file.name?.match(/\.(csv|json|txt|md|js|ts|jsx|tsx|html|css|py|sql|log|xml|yaml|yml)$/i)
+          ) {
+            try {
+              const base64Data = file.data.includes(",") ? file.data.split(",")[1] : file.data;
+              const decodedText = Buffer.from(base64Data, "base64").toString("utf-8");
+              
+              // If CSV, provide preview and compute quick stats
+              if (file.name?.endsWith(".csv") || file.mimeType?.includes("csv")) {
+                const rows = decodedText.split("\n").filter((r) => r.trim().length > 0);
+                fileContext += `\n[CSV Data (${rows.length} rows)]:\n\`\`\`csv\n${decodedText.slice(0, 15000)}\n\`\`\`\n`;
+              } else {
+                fileContext += `\n\`\`\`\n${decodedText.slice(0, 15000)}\n\`\`\`\n`;
+              }
+            } catch (decErr) {
+              fileContext += `[Binary data encoded: ${file.data.slice(0, 200)}...]`;
+            }
+          } else if (file.mimeType?.startsWith("image/")) {
+            fileContext += `\n[Image attachment provided for visual analysis: ${file.name}]`;
+          }
+        }
+      }
+      userMessageContent += fileContext;
     }
 
     // Live Web Search Grounding trigger
@@ -515,6 +616,83 @@ When the user asks you to code, build, or create a website, web app, script, com
     });
 
     const selectedModel = normalizeGroqModelName(model);
+    const wantsStream = req.body.stream !== false;
+
+    if (wantsStream) {
+      res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("Connection", "keep-alive");
+      if (typeof (res as any).flushHeaders === "function") {
+        (res as any).flushHeaders();
+      }
+
+      let stream: any;
+      try {
+        stream = await groq.chat.completions.create({
+          model: selectedModel,
+          messages: messages as any,
+          temperature: 0.7,
+          stream: true,
+        });
+      } catch (genErr: any) {
+        console.warn(`Primary Groq stream ${selectedModel} failed:`, genErr?.message || genErr);
+        if (selectedModel !== "llama-3.1-8b-instant") {
+          try {
+            stream = await groq.chat.completions.create({
+              model: "llama-3.1-8b-instant",
+              messages: messages as any,
+              temperature: 0.7,
+              stream: true,
+            });
+          } catch (fallbackErr: any) {
+            res.write(`data: ${JSON.stringify({ error: fallbackErr?.message || "Failed to start AI stream." })}\n\n`);
+            res.end();
+            return;
+          }
+        } else {
+          res.write(`data: ${JSON.stringify({ error: genErr?.message || "Failed to start AI stream." })}\n\n`);
+          res.end();
+          return;
+        }
+      }
+
+      for await (const chunk of stream) {
+        const delta = chunk.choices?.[0]?.delta?.content || "";
+        if (delta) {
+          res.write(`data: ${JSON.stringify({ token: delta })}\n\n`);
+        }
+      }
+
+      if (spotifyTrackObj) {
+        res.write(
+          `data: ${JSON.stringify({
+            token: `\n\n==Now Playing on Spotify==: **${spotifyTrackObj.title}** by ${spotifyTrackObj.artist}. Enjoy the music below!`,
+            spotifyTrack: spotifyTrackObj,
+          })}\n\n`
+        );
+      }
+
+      if (generatedImageUrl) {
+        res.write(
+          `data: ${JSON.stringify({
+            token: `\n\n![Generated Image](${generatedImageUrl})\n*Generated Image with AI*`,
+            image: generatedImageUrl,
+          })}\n\n`
+        );
+      }
+
+      res.write(
+        `data: ${JSON.stringify({
+          done: true,
+          image: generatedImageUrl,
+          sources: fetchedSources,
+          spotifyTrack: spotifyTrackObj,
+          modelUsed: selectedModel,
+        })}\n\n`
+      );
+      res.end();
+      return;
+    }
 
     let completion: any;
     try {
@@ -546,9 +724,13 @@ When the user asks you to code, build, or create a website, web app, script, com
       outputText += `\n\n==Now Playing on Spotify==: **${spotifyTrackObj.title}** by ${spotifyTrackObj.artist}. Enjoy the music below!`;
     }
 
+    if (generatedImageUrl) {
+      outputText += `\n\n![Generated Image](${generatedImageUrl})\n*Generated Image with AI*`;
+    }
+
     res.json({
       text: outputText,
-      image: null,
+      image: generatedImageUrl,
       sources: fetchedSources,
       spotifyTrack: spotifyTrackObj,
       modelUsed: selectedModel,

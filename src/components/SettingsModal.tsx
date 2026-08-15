@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Sliders, Sparkles, Moon, Sun, Volume2, Globe } from "lucide-react";
+import { X, Sliders, Sparkles, Moon, Sun, Volume2, Globe, Key } from "lucide-react";
 import { AppSettings } from "../types";
 
 interface SettingsModalProps {
@@ -19,7 +19,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 select-none">
-      <div className="bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl transition-all">
+      <div className="bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl transition-all max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-zinc-800">
           <div className="flex items-center space-x-2 text-slate-900 dark:text-zinc-100 font-bold text-base">
@@ -52,34 +52,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             />
           </div>
 
-          {/* Search Grounding Toggle */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-800">
-            <div className="flex items-center space-x-2.5">
-              <Globe className="w-4 h-4 text-sky-500" />
-              <div>
-                <div className="font-semibold text-slate-800 dark:text-zinc-200 text-xs">
-                  Google Search Grounding
-                </div>
-                <div className="text-[11px] text-slate-500 dark:text-zinc-400">
-                  Fetch live web info & verified sources
-                </div>
-              </div>
-            </div>
-            <input
-              type="checkbox"
-              checked={settings.searchGrounding}
-              onChange={(e) =>
-                onUpdateSettings({ searchGrounding: e.target.checked })
-              }
-              className="w-4 h-4 accent-slate-900 dark:accent-zinc-100 cursor-pointer"
-            />
-          </div>
-
-          {/* Custom Google Custom Search Engine (CSE) Settings */}
+          {/* Custom API Keys Configuration */}
           <div className="p-3.5 rounded-2xl bg-sky-500/5 dark:bg-sky-900/20 border border-sky-500/20 dark:border-sky-700/30 space-y-3">
             <div className="flex items-center space-x-2 text-sky-700 dark:text-sky-300 font-bold text-xs">
-              <Globe className="w-4 h-4 text-sky-500" />
-              <span>Google Custom Search Engine Credentials</span>
+              <Key className="w-4 h-4 text-sky-500" />
+              <span>Custom API Credentials (Optional)</span>
             </div>
             
             <div>
@@ -111,8 +88,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-xl px-3 py-1.5 text-slate-800 dark:text-zinc-100 text-xs focus:outline-hidden font-mono"
               />
             </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                Groq API Key
+              </label>
+              <input
+                type="password"
+                value={settings.customGroqApiKey || ""}
+                onChange={(e) =>
+                  onUpdateSettings({ customGroqApiKey: e.target.value })
+                }
+                placeholder="gsk_..."
+                className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-xl px-3 py-1.5 text-slate-800 dark:text-zinc-100 text-xs focus:outline-hidden font-mono"
+              />
+            </div>
+
             <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-tight">
-              Optional: Enter your own Google Custom Search API Key & CX ID. If left blank, the system uses default environment search fallbacks.
+              Google search sourcing is always enabled. If custom keys are left empty, the application seamlessly uses default system keys.
             </p>
           </div>
 
@@ -171,7 +164,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="pt-3 border-t border-slate-200 dark:border-zinc-800 flex justify-end">
           <button
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-bold hover:opacity-90 transition-opacity"
+            className="px-5 py-2 rounded-xl bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer"
           >
             Done
           </button>

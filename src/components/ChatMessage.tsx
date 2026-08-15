@@ -15,18 +15,9 @@ import {
   Code,
   Sparkles,
   Music,
-  ChevronDown,
-  ChevronRight,
-  Download,
-  FileCode,
-  Layers,
-  Terminal,
-  Cpu,
-  Eye,
-  FileArchive,
 } from "lucide-react";
 import { CodePreviewModal, ProjectFile } from "./CodePreviewModal";
-import JSZip from "jszip";
+import { ChartRenderer } from "./ChartRenderer";
 
 interface ParsedFile {
   name: string;
@@ -34,174 +25,6 @@ interface ParsedFile {
   language: string;
   lineCount: number;
 }
-
-// Plan & Architecture Thought Box Component
-const PlanBox: React.FC<{ planText: string }> = ({ planText }) => {
-  const [isOpen, setIsOpen] = useState<boolean>(true);
-  const lineCount = planText.split("\n").filter((l) => l.trim().length > 0).length;
-
-  return (
-    <div className="my-2.5 rounded-2xl border border-amber-500/30 dark:border-amber-400/20 bg-amber-500/5 dark:bg-amber-500/10 overflow-hidden shadow-2xs transition-all">
-      {/* Plan Header */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-3.5 py-2.5 bg-amber-500/10 dark:bg-amber-400/15 hover:bg-amber-500/15 text-amber-900 dark:text-amber-200 transition-colors text-left select-none cursor-pointer"
-      >
-        <div className="flex items-center space-x-2">
-          <div className="w-5 h-5 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-300 flex items-center justify-center">
-            <Cpu className="w-3.5 h-3.5" />
-          </div>
-          <span className="font-bold text-xs tracking-wide">
-            Planning & Architecture Strategy
-          </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/20 dark:bg-amber-400/20 text-amber-800 dark:text-amber-300 font-mono font-semibold">
-            {lineCount} {lineCount === 1 ? "step" : "steps"}
-          </span>
-        </div>
-
-        <div className="flex items-center space-x-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
-          <span>{isOpen ? "Collapse" : "Expand"}</span>
-          {isOpen ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronRight className="w-4 h-4" />
-          )}
-        </div>
-      </button>
-
-      {/* Plan Body - Smaller text in distinct font */}
-      <AnimatePresence initial={false}>
-        {isOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="p-3.5 font-mono text-[11px] sm:text-xs leading-relaxed text-slate-700 dark:text-amber-100/90 whitespace-pre-wrap border-t border-amber-500/20 bg-white/40 dark:bg-zinc-950/40 select-text">
-              {planText}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
-// File Box Grid Component showing small box cards for every code file
-const FileBoxGrid: React.FC<{
-  files: ParsedFile[];
-  onOpenFile: (fileName: string) => void;
-}> = ({ files, onOpenFile }) => {
-  if (files.length === 0) return null;
-
-  return (
-    <div className="my-3 p-3 rounded-2xl bg-slate-200/70 dark:bg-zinc-900/80 border border-slate-300 dark:border-zinc-700/80 shadow-2xs">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-800 dark:text-zinc-200">
-          <Layers className="w-4 h-4 text-emerald-500" />
-          <span>Project Files ({files.length})</span>
-        </div>
-        <span className="text-[10px] text-slate-500 dark:text-zinc-400">
-          Click any file box to inspect code
-        </span>
-      </div>
-
-      {/* Small Box Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-        {files.map((file) => (
-          <button
-            key={file.name}
-            type="button"
-            onClick={() => onOpenFile(file.name)}
-            className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-zinc-800/90 hover:bg-emerald-50 dark:hover:bg-zinc-700/80 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-400 text-left transition-all group shadow-2xs cursor-pointer"
-          >
-            <div className="flex items-center space-x-2 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <FileCode className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <div className="font-mono font-bold text-xs text-slate-800 dark:text-zinc-100 truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
-                  {file.name}
-                </div>
-                <div className="text-[10px] text-slate-500 dark:text-zinc-400 uppercase font-sans">
-                  {file.language} • {file.lineCount} lines
-                </div>
-              </div>
-            </div>
-
-            <div className="shrink-0 text-slate-400 group-hover:text-emerald-500 transition-colors ml-1">
-              <Eye className="w-3.5 h-3.5" />
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Project Action Bar Component (Run Live Preview + Download Files / ZIP)
-const ProjectActionBar: React.FC<{
-  files: ParsedFile[];
-  onRunPreview: () => void;
-  onDownloadZip: () => void;
-  isZipping: boolean;
-}> = ({ files, onRunPreview, onDownloadZip, isZipping }) => {
-  const hasRunnable = files.some(
-    (f) =>
-      f.language === "html" ||
-      f.name.endsWith(".html") ||
-      f.code.includes("<html") ||
-      f.language === "javascript" ||
-      f.language === "js" ||
-      f.language === "css"
-  );
-
-  return (
-    <div className="my-3 p-3 rounded-2xl bg-linear-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-2.5 shadow-xs select-none">
-      <div className="flex items-center space-x-2">
-        <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-          <Sparkles className="w-4 h-4" />
-        </div>
-        <div>
-          <div className="font-bold text-xs sm:text-sm text-slate-900 dark:text-zinc-100">
-            Project Code Ready
-          </div>
-          <div className="text-[11px] text-slate-600 dark:text-zinc-400">
-            {files.length} {files.length === 1 ? "file generated" : "files generated & connected"}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center space-x-2">
-        {/* Run Full Web Live Preview */}
-        {hasRunnable && (
-          <button
-            type="button"
-            onClick={onRunPreview}
-            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
-          >
-            <Play className="w-3.5 h-3.5 fill-current" />
-            <span>Run Live Preview</span>
-          </button>
-        )}
-
-        {/* Download ZIP button */}
-        <button
-          type="button"
-          onClick={onDownloadZip}
-          disabled={isZipping}
-          className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-zinc-100 dark:hover:bg-white dark:text-zinc-900 active:scale-95 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
-        >
-          <FileArchive className="w-3.5 h-3.5" />
-          <span>{isZipping ? "Preparing ZIP..." : "Download ZIP"}</span>
-        </button>
-      </div>
-    </div>
-  );
-};
 
 // Custom Code Block Renderer Component
 const CodeBlockItem: React.FC<{
@@ -287,6 +110,7 @@ interface ChatMessageProps {
   onSpeak: (text: string) => void;
   isSpeaking: boolean;
   onStopSpeaking: () => void;
+  isStreaming?: boolean;
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -294,6 +118,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   onSpeak,
   isSpeaking,
   onStopSpeaking,
+  isStreaming = false,
 }) => {
   const [copied, setCopied] = useState(false);
   const [copiedBlockIndex, setCopiedBlockIndex] = useState<number | null>(null);
@@ -305,23 +130,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     isOpen: false,
     files: [],
   });
-  const [isZipping, setIsZipping] = useState(false);
 
   const isUser = message.role === "user";
 
-  // Extract Plan (<plan>...</plan> or <think>...</think>) and clean body text
-  const { planText, cleanBodyText, parsedFiles } = useMemo(() => {
-    let plan: string | null = null;
+  // Parse code blocks for multi-file preview
+  const { cleanBodyText, parsedFiles } = useMemo(() => {
     let text = message.text || "";
 
-    // Check for <plan> or <think> tags
-    const planMatch = /<(?:plan|think)>([\s\S]*?)<\/(?:plan|think)>/i.exec(text);
-    if (planMatch) {
-      plan = planMatch[1].trim();
-      text = text.replace(/<(?:plan|think)>[\s\S]*?<\/(?:plan|think)>/gi, "").trim();
-    }
+    // Strip out internal tags cleanly
+    text = text.replace(/<(?:plan|think)>[\s\S]*?<\/(?:plan|think)>/gi, "").trim();
 
-    // Parse all code blocks for the File Box Grid & Multi-file preview
     const files: ParsedFile[] = [];
     const codeBlockRegex = /```(\w+)?(?:\s+([\w\.\-\/]+))?\n([\s\S]*?)```/g;
     let match;
@@ -333,7 +151,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       const code = match[3].trim();
 
       if (!filename) {
-        // Detect filename from first line comment
         const firstLineMatch = /^(?:<!--|\/\/|\/\*|#)\s*([\w\.\-\/]+\.(?:html|css|js|ts|jsx|tsx|json|py|sql|sh|env))\s*(?:-->|\*\/)?/i.exec(code);
         if (firstLineMatch) {
           filename = firstLineMatch[1];
@@ -362,7 +179,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     const processed = text.replace(/==(.*?)==/g, "<mark>$1</mark>");
 
     return {
-      planText: plan,
       cleanBodyText: processed,
       parsedFiles: files,
     };
@@ -408,125 +224,90 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     });
   };
 
-  const handleDownloadProjectZip = async () => {
-    if (parsedFiles.length === 0) return;
-    try {
-      setIsZipping(true);
-      const zip = new JSZip();
-
-      parsedFiles.forEach((file) => {
-        zip.file(file.name, file.code);
-      });
-
-      // Add a clean README.md
-      if (!parsedFiles.some((f) => f.name.toLowerCase() === "readme.md")) {
-        zip.file(
-          "README.md",
-          `# Web Project\n\nGenerated with Kelvis AI Assistant.\n\n### How to Run:\nOpen \`index.html\` in any web browser to view your live web application.\n`
-        );
-      }
-
-      const content = await zip.generateAsync({ type: "blob" });
-      const url = URL.createObjectURL(content);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "web-project.zip";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("Error creating ZIP download:", err);
-    } finally {
-      setIsZipping(false);
-    }
-  };
+  // If this is an empty placeholder message waiting for first stream chunk, don't show blank area
+  if (!isUser && !cleanBodyText && !message.image && !message.spotifyTrack) {
+    return null;
+  }
 
   return (
     <>
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25, ease: "easeOut" }}
-        className={`flex w-full my-3 px-2 sm:px-4 ${
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className={`flex w-full my-2.5 px-2 sm:px-4 ${
           isUser ? "justify-end" : "justify-start"
         }`}
       >
-        <div
-          className={`flex items-start max-w-[95%] sm:max-w-[88%] md:max-w-[82%] ${
-            isUser ? "flex-row-reverse space-x-reverse space-x-2" : "flex-row space-x-3"
-          }`}
-        >
-          {/* Kelvis AI Avatar */}
-          {!isUser && (
-            <div className="w-8 h-8 rounded-full bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center shrink-0 shadow-sm mt-0.5 border border-slate-700 dark:border-zinc-300">
+        {isUser ? (
+          /* User Message: Clean bubble on the right */
+          <div className="flex items-start max-w-[90%] sm:max-w-[80%] md:max-w-[75%] flex-row-reverse space-x-reverse space-x-2">
+            <div className="flex flex-col min-w-0 items-end">
+              <div className="px-4 py-3 rounded-2xl bg-slate-900 text-white dark:bg-zinc-200 dark:text-zinc-900 rounded-tr-xs shadow-xs text-sm font-medium leading-relaxed select-text">
+                {/* Attached files preview */}
+                {message.files && message.files.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2 pb-2 border-b border-slate-700/30 dark:border-zinc-700">
+                    {message.files.map((file, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center space-x-1 text-[11px] px-2 py-0.5 rounded-md bg-slate-800/40 dark:bg-zinc-700/50 text-slate-200 dark:text-zinc-200"
+                      >
+                        {file.mimeType.startsWith("image/") ? (
+                          <ImageIcon className="w-3 h-3 text-sky-400" />
+                        ) : (
+                          <FileText className="w-3 h-3 text-amber-400" />
+                        )}
+                        <span className="truncate max-w-[120px]">{file.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <p className="whitespace-pre-wrap">{message.text}</p>
+              </div>
+
+              {/* Timestamp & copy */}
+              <div className="flex items-center space-x-1.5 mt-1 text-[11px] text-slate-400 dark:text-zinc-500">
+                <span>{message.timestamp}</span>
+                <button
+                  type="button"
+                  onClick={() => handleCopyText(message.text)}
+                  className="hover:text-slate-700 dark:hover:text-zinc-300 p-0.5 rounded transition-colors cursor-pointer"
+                  title="Copy message"
+                >
+                  {copied ? (
+                    <Check className="w-3 h-3 text-emerald-500" />
+                  ) : (
+                    <Copy className="w-3 h-3" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* AI Response: DIRECT ON STREAM - NOT IN A TAB OR CARD BOX */
+          <div className="flex items-start w-full max-w-4xl space-x-3.5">
+            {/* Kelvis AI Avatar */}
+            <div className="w-8 h-8 rounded-full bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center shrink-0 shadow-xs mt-1 border border-slate-700 dark:border-zinc-300">
               <Sparkles className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
             </div>
-          )}
 
-          {/* Message Body Container */}
-          <div className="flex flex-col min-w-0 flex-1">
-            <div
-              className={`px-4 py-3.5 rounded-2xl relative group transition-all text-sm leading-relaxed ${
-                isUser
-                  ? "bg-slate-900 text-white dark:bg-zinc-200 dark:text-zinc-900 rounded-tr-xs shadow-sm font-medium"
-                  : "bg-slate-100/90 dark:bg-zinc-800/90 text-slate-800 dark:text-zinc-100 rounded-tl-xs border border-slate-300 dark:border-zinc-700/80 shadow-2xs"
-              }`}
-            >
-              {/* Attached files preview if user message */}
-              {message.files && message.files.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-2 pb-2 border-b border-slate-700/30 dark:border-zinc-700">
-                  {message.files.map((file, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center space-x-1 text-[11px] px-2 py-0.5 rounded-md bg-slate-800/40 dark:bg-zinc-700/50 text-slate-200 dark:text-zinc-200"
-                    >
-                      {file.mimeType.startsWith("image/") ? (
-                        <ImageIcon className="w-3 h-3 text-sky-400" />
-                      ) : (
-                        <FileText className="w-3 h-3 text-amber-400" />
-                      )}
-                      <span className="truncate max-w-[120px]">{file.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
+            {/* AI Text Body directly on canvas */}
+            <div className="flex flex-col min-w-0 flex-1">
               {/* Generated image */}
               {message.image && (
-                <div className="mb-3 overflow-hidden rounded-xl border border-slate-300 dark:border-zinc-700">
+                <div className="mb-3 overflow-hidden rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-sm max-w-xl">
                   <img
                     src={message.image}
                     alt="AI Generated Content"
-                    className="w-full max-h-80 object-cover rounded-xl"
+                    className="w-full max-h-96 object-cover rounded-2xl"
                     referrerPolicy="no-referrer"
                   />
                 </div>
               )}
 
-              {/* Step 1 & 2: Collapsible Planning & Architecture Box */}
-              {!isUser && planText && <PlanBox planText={planText} />}
-
-              {/* Step 3: Interactive File Box Grid */}
-              {!isUser && parsedFiles.length > 0 && (
-                <FileBoxGrid
-                  files={parsedFiles}
-                  onOpenFile={(fileName) => handleOpenLivePreview(fileName)}
-                />
-              )}
-
-              {/* Step 4: Project Action Bar (Run Preview + Download ZIP) */}
-              {!isUser && parsedFiles.length > 0 && (
-                <ProjectActionBar
-                  files={parsedFiles}
-                  onRunPreview={() => handleOpenLivePreview()}
-                  onDownloadZip={handleDownloadProjectZip}
-                  isZipping={isZipping}
-                />
-              )}
-
-              {/* Message Markdown Body */}
-              <div className="markdown-body space-y-2 select-text">
+              {/* Direct Markdown Content */}
+              <div className="markdown-body text-slate-800 dark:text-zinc-100 text-sm sm:text-[15px] leading-relaxed select-text font-normal">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
@@ -572,12 +353,30 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                     },
                     code({ node, inline, className, children, ...props }: any) {
                       const match = /language-(\w+)/.exec(className || "");
-                      const rawLang = match ? match[1] : "code";
+                      const rawLang = (match ? match[1] : "code").toLowerCase();
                       const codeString = String(children).replace(/\n$/, "");
                       const blockIdx = Math.abs(codeString.length + (rawLang.length * 10));
 
+                      // Check if this is an interactive Chart specification
+                      if (
+                        !inline &&
+                        (rawLang === "chart" ||
+                          rawLang === "charts" ||
+                          rawLang === "recharts" ||
+                          (rawLang === "json" &&
+                            (codeString.includes('"type"') || codeString.includes('"data"'))))
+                      ) {
+                        try {
+                          const parsed = JSON.parse(codeString);
+                          if (parsed && Array.isArray(parsed.data) && parsed.data.length > 0) {
+                            return <ChartRenderer config={parsed} />;
+                          }
+                        } catch (e) {
+                          // Not valid JSON chart, continue to normal code block
+                        }
+                      }
+
                       if (!inline && (match || codeString.includes("\n"))) {
-                        // Look for matching file from parsedFiles
                         const matchingFile = parsedFiles.find(
                           (f) => f.code.trim() === codeString.trim()
                         );
@@ -602,7 +401,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
                       return (
                         <code
-                          className="px-1.5 py-0.5 rounded-md bg-slate-200/80 dark:bg-zinc-700/80 font-mono text-[12px] text-slate-900 dark:text-zinc-100 font-semibold"
+                          className="px-1.5 py-0.5 rounded-md bg-slate-200/80 dark:bg-zinc-800 font-mono text-[12px] text-slate-900 dark:text-zinc-100 font-semibold"
                           {...props}
                         >
                           {children}
@@ -610,33 +409,33 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                       );
                     },
                     p({ children }) {
-                      return <p className="leading-relaxed my-1.5">{children}</p>;
+                      return <p className="leading-relaxed my-2">{children}</p>;
                     },
                     blockquote({ children }) {
                       return (
-                        <blockquote className="my-3 border-l-3 border-amber-500/90 dark:border-amber-400 pl-3.5 py-2 bg-slate-100/80 dark:bg-zinc-900/80 text-slate-800 dark:text-zinc-200 font-medium italic rounded-r-xl shadow-2xs">
+                        <blockquote className="my-3 border-l-3 border-emerald-500/90 dark:border-emerald-400 pl-3.5 py-1 text-slate-700 dark:text-zinc-300 font-medium italic">
                           {children}
                         </blockquote>
                       );
                     },
                     h1({ children }) {
                       return (
-                        <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white mt-4 mb-2 border-b border-slate-200 dark:border-zinc-800 pb-1">
+                        <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white mt-4 mb-2">
                           {children}
                         </h1>
                       );
                     },
                     h2({ children }) {
                       return (
-                        <h2 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-400 mt-3.5 mb-1.5 flex items-center space-x-2">
-                          <span>{children}</span>
+                        <h2 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-400 mt-3.5 mb-1.5">
+                          {children}
                         </h2>
                       );
                     },
                     h3({ children }) {
                       return (
-                        <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-zinc-100 mt-3 mb-1 flex items-center space-x-1.5">
-                          <span>{children}</span>
+                        <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-zinc-100 mt-3 mb-1">
+                          {children}
                         </h3>
                       );
                     },
@@ -647,10 +446,22 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                       return <ol className="list-decimal list-inside my-2 space-y-1 text-slate-700 dark:text-zinc-300">{children}</ol>;
                     },
                     hr() {
-                      return <hr className="my-4 border-slate-300 dark:border-zinc-800" />;
+                      return <hr className="my-4 border-slate-200 dark:border-zinc-800" />;
                     },
                     strong({ children }) {
                       return <strong className="font-bold text-slate-900 dark:text-white">{children}</strong>;
+                    },
+                    img({ src, alt }) {
+                      return (
+                        <div className="my-3 overflow-hidden rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-sm max-w-xl">
+                          <img
+                            src={src}
+                            alt={alt || "Generated visual"}
+                            className="w-full max-h-96 object-contain rounded-2xl"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                      );
                     },
                     mark({ children }) {
                       return <mark className="bg-amber-200 dark:bg-amber-900/60 text-amber-950 dark:text-amber-100 px-1 py-0.5 rounded-xs font-semibold">{children}</mark>;
@@ -659,11 +470,25 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 >
                   {cleanBodyText}
                 </ReactMarkdown>
+
+                {/* Animated Typing Cursor with Smooth Fade Out */}
+                <AnimatePresence>
+                  {isStreaming && (
+                    <motion.span
+                      key="streaming-cursor"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: [1, 0.2, 1] }}
+                      exit={{ opacity: 0, transition: { duration: 0.6, ease: "easeOut" } }}
+                      transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut" }}
+                      className="inline-block w-2 h-4 ml-1 bg-emerald-500 rounded-xs align-middle"
+                    />
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Spotify Player */}
               {message.spotifyTrack && (
-                <div className="mt-3 p-3 rounded-2xl bg-zinc-950 border border-emerald-500/40 text-white shadow-lg overflow-hidden select-none">
+                <div className="mt-3 p-3 rounded-2xl bg-zinc-950 border border-emerald-500/40 text-white shadow-lg overflow-hidden select-none max-w-lg">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center space-x-2">
                       <div className="w-6 h-6 rounded-full bg-emerald-500 text-black flex items-center justify-center font-bold">
@@ -719,14 +544,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
               {/* Web Sources */}
               {message.sources && message.sources.length > 0 && (
-                <div className="mt-3 pt-2.5 border-t border-slate-200/80 dark:border-zinc-800 text-xs select-none">
+                <div className="mt-3 pt-2 text-xs select-none">
                   <div className="flex items-center space-x-2 mb-2">
                     <div className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
                     </div>
-                    <span className="font-bold text-[11px] uppercase tracking-wider text-slate-700 dark:text-cyan-400">
-                      Searched Live Web Sources ({message.sources.length})
+                    <span className="font-bold text-[11px] uppercase tracking-wider text-slate-600 dark:text-cyan-400">
+                      Sources ({message.sources.length})
                     </span>
                   </div>
 
@@ -748,7 +573,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                           href={src.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-slate-100 dark:bg-zinc-900 text-slate-800 dark:text-zinc-200 border border-slate-300 dark:border-zinc-700/80 hover:border-cyan-500 dark:hover:border-cyan-400 hover:text-cyan-600 dark:hover:text-cyan-300 transition-all shadow-xs group"
+                          className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-white dark:bg-zinc-800/80 text-slate-800 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700/80 hover:border-cyan-500 dark:hover:border-cyan-400 hover:text-cyan-600 dark:hover:text-cyan-300 transition-all shadow-2xs group"
                           title={src.snippet || src.title}
                         >
                           <img
@@ -769,32 +594,26 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Footer details */}
-            <div
-              className={`flex items-center space-x-2 mt-1 text-[11px] text-slate-400 dark:text-zinc-500 ${
-                isUser ? "justify-end" : "justify-start pl-1"
-              }`}
-            >
-              <span>{message.timestamp}</span>
+              {/* Action details footer */}
+              <div className="flex items-center space-x-2 mt-2 text-[11px] text-slate-400 dark:text-zinc-500">
+                <span>{message.timestamp}</span>
 
-              {/* Copy button */}
-              <button
-                type="button"
-                onClick={() => handleCopyText(message.text)}
-                className="hover:text-slate-700 dark:hover:text-zinc-300 p-0.5 rounded transition-colors cursor-pointer"
-                title="Copy message"
-              >
-                {copied ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5" />
-                )}
-              </button>
+                {/* Copy button */}
+                <button
+                  type="button"
+                  onClick={() => handleCopyText(message.text)}
+                  className="hover:text-slate-700 dark:hover:text-zinc-300 p-0.5 rounded transition-colors cursor-pointer"
+                  title="Copy message"
+                >
+                  {copied ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
 
-              {/* Text-to-Speech */}
-              {!isUser && (
+                {/* Text-to-Speech */}
                 <button
                   type="button"
                   onClick={() => {
@@ -817,10 +636,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                     <Volume2 className="w-3.5 h-3.5" />
                   )}
                 </button>
-              )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </motion.div>
 
       {/* Multi-File Code Preview Modal */}

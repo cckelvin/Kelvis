@@ -4,7 +4,6 @@ import {
   Mic,
   MicOff,
   Radio,
-  Zap,
   ChevronDown,
   Play,
   X,
@@ -30,10 +29,6 @@ interface InputToolbarProps {
   onToggleSpeechToText: () => void;
   isVoiceCallActive: boolean;
   onToggleVoiceCall: () => void;
-  isConnected: boolean;
-  onToggleConnect: () => void;
-  searchGrounding: boolean;
-  onToggleSearchGrounding: () => void;
   isCodeMode?: boolean;
   onToggleCodeMode?: () => void;
 }
@@ -57,8 +52,6 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
   onToggleSpeechToText,
   isVoiceCallActive,
   onToggleVoiceCall,
-  isConnected,
-  onToggleConnect,
   isCodeMode,
   onToggleCodeMode,
 }) => {
@@ -234,20 +227,7 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
               <Radio className={`w-4 h-4 ${isVoiceCallActive ? "animate-spin" : ""}`} />
             </button>
 
-            {/* ICON-ONLY 4: CONNECT -> Lightning Plug icon `🔌` */}
-            <button
-              onClick={onToggleConnect}
-              className={`p-2 rounded-xl border transition-all shadow-2xs relative ${
-                isConnected
-                  ? "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-700"
-                  : "bg-slate-200 text-slate-600 border-slate-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700"
-              }`}
-              title={isConnected ? "API Connected" : "API Disconnected"}
-            >
-              <Zap className={`w-4 h-4 ${isConnected ? "fill-amber-500 text-amber-500" : ""}`} />
-            </button>
-
-            {/* ICON-ONLY 5: CODE MODE -> Code icon `💻` */}
+            {/* ICON-ONLY 4: CODE MODE -> Code icon `💻` */}
             <button
               onClick={() => {
                 if (onToggleCodeMode) {

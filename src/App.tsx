@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { ChatMessage } from "./components/ChatMessage";
@@ -8,8 +9,9 @@ import { NotificationsModal } from "./components/NotificationsModal";
 import { AuthModal } from "./components/AuthModal";
 import { SqlSchemaModal } from "./components/SqlSchemaModal";
 import { SpotifyModal } from "./components/SpotifyModal";
+import { VoiceCallModal } from "./components/VoiceCallModal";
 import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack } from "./types";
-import { Trash2, Download, RotateCcw, Sparkles, Code, Terminal, Info } from "lucide-react";
+import { Trash2, Download, RotateCcw, Sparkles, Code, Terminal, Info, BarChart3, Image as ImageIcon } from "lucide-react";
 import {
   fetchSupabaseSessions,
   saveSupabaseSession,
@@ -51,7 +53,7 @@ const INITIAL_SESSIONS: ChatSession[] = [
 const DEFAULT_SETTINGS: AppSettings = {
   systemInstruction:
     "You are Kelvis, a smart, creative, and highly capable AI assistant. Never call yourself Gemini. You identify strictly as Kelvis. When writing HTML, CSS, JavaScript, or TypeScript, provide complete runnable code blocks inside ``` language boxes so the user can test them with the Run Preview button.",
-  searchGrounding: false,
+  searchGrounding: true,
   autoVoiceRead: false,
   darkTheme: false,
   temperature: 0.7,
@@ -297,13 +299,16 @@ export default function App() {
   };
 
   // Send Message Handler
-  const handleSendMessage = async () => {
-    if (!prompt.trim() && attachedFiles.length === 0) return;
+  const handleSendMessage = async (textOverride?: string) => {
+    const rawPrompt = typeof textOverride === "string" ? textOverride : prompt;
+    if (!rawPrompt.trim() && attachedFiles.length === 0) return;
 
-    const currentPrompt = prompt.trim();
+    const currentPrompt = rawPrompt.trim();
     const currentFiles = [...attachedFiles];
 
-    setPrompt("");
+    if (typeof textOverride !== "string") {
+      setPrompt("");
+    }
     setAttachedFiles([]);
 
     const userMsg: Message = {
@@ -354,6 +359,23 @@ export default function App() {
 
     setIsLoading(true);
 
+    const aiMsgId = toValidUUID(`msg-ai-${Date.now() + 1}`);
+    const initialAiMsg: Message = {
+      id: aiMsgId,
+      role: "model",
+      text: "",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    // Pre-insert placeholder message for smooth real-time token streaming
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === activeSessionId
+          ? { ...s, messages: [...s.messages, initialAiMsg] }
+          : s
+      )
+    );
+
     try {
       // Build history payload for backend API
       const historyPayload = (activeSession?.messages || []).map((m) => ({
@@ -369,53 +391,111 @@ export default function App() {
           history: historyPayload,
           model: modelToUse,
           files: currentFiles,
-          searchGrounding: settings.searchGrounding,
+          searchGrounding: true,
           systemInstruction: settings.systemInstruction,
           googleApiKey: settings.customGoogleApiKey,
           googleCx: settings.customGoogleCx,
+          groqApiKey: settings.customGroqApiKey,
+          stream: true,
         }),
       });
 
-      const responseText = await res.text();
-      let data: any = {};
-      try {
-        data = JSON.parse(responseText);
-      } catch (e) {
-        if (!res.ok) {
-          throw new Error(
-            `Server returned HTTP ${res.status}. If hosting on Vercel, please check that GEMINI_API_KEY is configured in Vercel Project Settings -> Environment Variables.`
-          );
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Server returned HTTP ${res.status}: ${errText}`);
+      }
+
+      let accumulatedText = "";
+      let finalSources: any[] = [];
+      let finalSpotifyTrack: any = null;
+      let finalImage: string | undefined = undefined;
+
+      if (res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith("data: ")) {
+              const jsonStr = trimmed.slice(6);
+              if (jsonStr === "[DONE]") continue;
+              try {
+                const parsed = JSON.parse(jsonStr);
+                if (parsed.token) {
+                  accumulatedText += parsed.token;
+                  // Incrementally update UI with streamed tokens
+                  setSessions((prev) =>
+                    prev.map((s) =>
+                      s.id === activeSessionId
+                        ? {
+                            ...s,
+                            messages: s.messages.map((m) =>
+                              m.id === aiMsgId
+                                ? {
+                                    ...m,
+                                    text: accumulatedText,
+                                    image: parsed.image || m.image,
+                                    spotifyTrack: parsed.spotifyTrack || m.spotifyTrack,
+                                  }
+                                : m
+                            ),
+                          }
+                        : s
+                    )
+                  );
+                }
+                if (parsed.image) finalImage = parsed.image;
+                if (parsed.sources) finalSources = parsed.sources;
+                if (parsed.spotifyTrack) finalSpotifyTrack = parsed.spotifyTrack;
+                if (parsed.error) {
+                  accumulatedText += `\n\n⚠️ ${parsed.error}`;
+                }
+              } catch (e) {
+                // Ignore parse errors on partial chunks
+              }
+            }
+          }
         }
       }
 
-      if (!res.ok) {
-        throw new Error(data.error || `Backend returned status ${res.status}`);
-      }
-
-      const aiMsg: Message = {
-        id: toValidUUID(`msg-ai-${Date.now() + 1}`),
+      const finalizedAiMsg: Message = {
+        id: aiMsgId,
         role: "model",
-        text: data.text || "No response received.",
+        text: accumulatedText || "No response received.",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        image: data.image,
-        sources: data.sources,
-        spotifyTrack: data.spotifyTrack,
+        image: finalImage,
+        sources: finalSources.length > 0 ? finalSources : undefined,
+        spotifyTrack: finalSpotifyTrack,
       };
 
       setSessions((prev) =>
         prev.map((s) =>
           s.id === activeSessionId
-            ? { ...s, messages: [...s.messages, aiMsg] }
+            ? {
+                ...s,
+                messages: s.messages.map((m) =>
+                  m.id === aiMsgId ? finalizedAiMsg : m
+                ),
+              }
             : s
         )
       );
 
-      // Save AI message to Supabase
-      saveSupabaseMessage(activeSessionId, aiMsg);
+      // Save finalized AI message to Supabase
+      saveSupabaseMessage(activeSessionId, finalizedAiMsg);
 
       // Auto Voice Readout if enabled or Voice Call active
       if (settings.autoVoiceRead || isVoiceCallActive) {
-        speakText(aiMsg.text, aiMsg.id);
+        speakText(finalizedAiMsg.text, finalizedAiMsg.id);
       }
     } catch (err: any) {
       console.error(err);
@@ -428,7 +508,7 @@ export default function App() {
       setSessions((prev) =>
         prev.map((s) =>
           s.id === activeSessionId
-            ? { ...s, messages: [...s.messages, errorMsg] }
+            ? { ...s, messages: [...s.messages.filter((m) => m.id !== aiMsgId), errorMsg] }
             : s
         )
       );
@@ -569,18 +649,38 @@ export default function App() {
               {/* Action Quick Starters */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left">
                 <button
-                  onClick={() => setPrompt("Write a simple HTML, CSS, and JS web calculator code block")}
-                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 text-xs transition-all shadow-2xs group"
+                  onClick={() => setPrompt("Generate an interactive quarterly revenue and profit growth chart for tech companies")}
+                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 text-xs transition-all shadow-2xs group cursor-pointer"
                 >
                   <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
-                    <Code className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
-                    <span>Run HTML/JS Code</span>
+                    <BarChart3 className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
+                    <span>Interactive Data Charts</span>
                   </div>
-                  <div className="text-[11px] text-slate-400">Generate runnable web code</div>
+                  <div className="text-[11px] text-slate-400">Generate dynamic bar & line charts</div>
+                </button>
+                <button
+                  onClick={() => setPrompt("Generate an image of a futuristic cyberpunk city with neon lights and flying vehicles")}
+                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 text-xs transition-all shadow-2xs group cursor-pointer"
+                >
+                  <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
+                    <ImageIcon className="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform" />
+                    <span>AI Image Generation</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">Create high-res illustrations & photos</div>
+                </button>
+                <button
+                  onClick={() => setPrompt("Code a modern task manager web app with HTML, CSS, and JS")}
+                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 text-xs transition-all shadow-2xs group cursor-pointer"
+                >
+                  <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
+                    <Code className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
+                    <span>Bolt Web App Code</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">Multi-file generation & live sandbox</div>
                 </button>
                 <button
                   onClick={() => setPrompt("Explain who Kelvis is and what key features you support")}
-                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 text-xs transition-all shadow-2xs group"
+                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 text-xs transition-all shadow-2xs group cursor-pointer"
                 >
                   <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
                     <Info className="w-4 h-4 text-sky-500 group-hover:scale-110 transition-transform" />
@@ -591,28 +691,68 @@ export default function App() {
               </div>
             </div>
           ) : (
-            activeSession.messages.map((msg) => (
+            activeSession.messages.map((msg, idx) => (
               <ChatMessage
                 key={msg.id}
                 message={msg}
                 onSpeak={(txt) => speakText(txt, msg.id)}
                 isSpeaking={currentlySpeakingId === msg.id}
                 onStopSpeaking={stopSpeaking}
+                isStreaming={
+                  isLoading &&
+                  idx === activeSession.messages.length - 1 &&
+                  msg.role === "model"
+                }
               />
             ))
           )}
 
-          {/* Loading Indicator */}
-          {isLoading && (
-            <div className="flex items-center space-x-3 px-4 py-3 max-w-xs bg-slate-100 dark:bg-zinc-800 rounded-2xl rounded-tl-xs border border-slate-300 dark:border-zinc-700 ml-2 sm:ml-4">
-              <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-zinc-100 flex items-center justify-center">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              </div>
-              <span className="text-xs text-slate-600 dark:text-zinc-300 font-medium">
-                Kelvis is typing...
-              </span>
-            </div>
-          )}
+          {/* Typing Indicator with Smooth Gradual Fade-Out */}
+          <AnimatePresence mode="wait">
+            {isLoading &&
+              (!activeSession?.messages?.length ||
+                activeSession.messages[activeSession.messages.length - 1].role === "user" ||
+                !activeSession.messages[activeSession.messages.length - 1].text) && (
+                <motion.div
+                  key="kelvis-typing-indicator"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{
+                    opacity: 0,
+                    y: -4,
+                    scale: 0.98,
+                    transition: { duration: 0.5, ease: "easeInOut" },
+                  }}
+                  className="flex items-center space-x-3 px-3 py-2 text-slate-500 dark:text-zinc-400 select-none"
+                >
+                  <div className="w-8 h-8 rounded-full bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center shrink-0 shadow-xs border border-slate-700 dark:border-zinc-300">
+                    <Sparkles className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-medium text-slate-600 dark:text-zinc-300">
+                      Kelvis is thinking
+                    </span>
+                    <div className="flex items-center space-x-1">
+                      <motion.span
+                        animate={{ opacity: [0.3, 1, 0.3], scale: [0.85, 1.15, 0.85] }}
+                        transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", delay: 0 }}
+                        className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+                      />
+                      <motion.span
+                        animate={{ opacity: [0.3, 1, 0.3], scale: [0.85, 1.15, 0.85] }}
+                        transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
+                        className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+                      />
+                      <motion.span
+                        animate={{ opacity: [0.3, 1, 0.3], scale: [0.85, 1.15, 0.85] }}
+                        transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+                        className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+          </AnimatePresence>
 
           <div ref={messagesEndRef} />
         </div>
@@ -634,12 +774,6 @@ export default function App() {
           onToggleSpeechToText={toggleSpeechToText}
           isVoiceCallActive={isVoiceCallActive}
           onToggleVoiceCall={() => setIsVoiceCallActive(!isVoiceCallActive)}
-          isConnected={isConnected}
-          onToggleConnect={() => setIsConnected(!isConnected)}
-          searchGrounding={settings.searchGrounding}
-          onToggleSearchGrounding={() =>
-            setSettings((prev) => ({ ...prev, searchGrounding: !prev.searchGrounding }))
-          }
           isCodeMode={isCodeMode}
           onToggleCodeMode={() => {
             const nextMode = !isCodeMode;
@@ -684,6 +818,25 @@ export default function App() {
         isOpen={isSpotifyOpen}
         onClose={() => setIsSpotifyOpen(false)}
         onSelectTrackToPlay={handlePlaySelectedTrack}
+      />
+
+      {/* Live Full Voice Call Modal */}
+      <VoiceCallModal
+        isOpen={isVoiceCallActive}
+        onClose={() => setIsVoiceCallActive(false)}
+        onSendMessage={async (spokenText) => {
+          await handleSendMessage(spokenText);
+        }}
+        isAiResponding={isLoading}
+        lastAiText={
+          activeSession?.messages
+            ?.slice()
+            ?.reverse()
+            ?.find((m) => m.role === "model")?.text
+        }
+        onSpeak={(txt) => speakText(txt)}
+        isSpeaking={currentlySpeakingId !== null}
+        onStopSpeaking={stopSpeaking}
       />
     </div>
   );

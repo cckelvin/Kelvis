@@ -49,4 +49,5 @@ export interface AppSettings {
   temperature: number;
   customGoogleApiKey?: string;
   customGoogleCx?: string;
+  customGroqApiKey?: string;
 }
