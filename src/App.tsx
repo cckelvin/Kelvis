@@ -148,15 +148,29 @@ export default function App() {
     localStorage.setItem("sketch_ai_settings", JSON.stringify(settings));
     if (settings.darkTheme) {
       document.documentElement.classList.add("dark");
+      document.documentElement.setAttribute("data-theme", "dark");
       document.body.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
+      document.documentElement.setAttribute("data-theme", "light");
       document.body.classList.remove("dark");
     }
-  }, [settings]);
+  }, [settings.darkTheme, settings]);
 
   const toggleTheme = () => {
-    setSettings((prev) => ({ ...prev, darkTheme: !prev.darkTheme }));
+    setSettings((prev) => {
+      const nextDark = !prev.darkTheme;
+      if (nextDark) {
+        document.documentElement.classList.add("dark");
+        document.documentElement.setAttribute("data-theme", "dark");
+        document.body.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        document.documentElement.setAttribute("data-theme", "light");
+        document.body.classList.remove("dark");
+      }
+      return { ...prev, darkTheme: nextDark };
+    });
   };
 
   // Check health status on load
