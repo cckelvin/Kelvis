@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { motion, AnimatePresence } from "motion/react";
-import { Message, QuizPayload } from "../types";
+import { Message, QuizPayload, GameType, GamePayload } from "../types";
 import {
   Volume2,
   VolumeX,
@@ -17,6 +17,11 @@ import {
   Music,
   Zap,
   HelpCircle,
+  Gamepad2,
+  Award,
+  Shield,
+  Layers,
+  Crosshair,
 } from "lucide-react";
 import { CodePreviewModal, ProjectFile } from "./CodePreviewModal";
 import { ChartRenderer } from "./ChartRenderer";
@@ -116,6 +121,7 @@ interface ChatMessageProps {
   onStopSpeaking: () => void;
   isStreaming?: boolean;
   onOpenQuiz?: (quiz: QuizPayload) => void;
+  onOpenGame?: (game: GameType) => void;
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -125,6 +131,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   onStopSpeaking,
   isStreaming = false,
   onOpenQuiz,
+  onOpenGame,
 }) => {
   const [copied, setCopied] = useState(false);
   const [copiedBlockIndex, setCopiedBlockIndex] = useState<number | null>(null);
@@ -368,6 +375,84 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                       const rawLang = (match ? match[1] : "code").toLowerCase();
                       const codeString = String(children).replace(/\n$/, "");
                       const blockIdx = Math.abs(codeString.length + (rawLang.length * 10));
+
+                      // Check if this is an interactive Game specification
+                      if (
+                        !inline &&
+                        (rawLang === "game" ||
+                          rawLang === "games" ||
+                          rawLang === "play" ||
+                          (rawLang === "json" && (codeString.includes('"game"') || codeString.includes('"checkers"') || codeString.includes('"3d-shooter"'))))
+                      ) {
+                        try {
+                          let gameType: GameType = "checkers";
+                          let gameTitle = "Live Game vs Kelvis AI";
+                          let gameDesc = "Play in real-time right inside your browser.";
+
+                          if (codeString.trim().startsWith("{")) {
+                            const parsed = JSON.parse(codeString);
+                            if (parsed.game) gameType = parsed.game;
+                            if (parsed.title) gameTitle = parsed.title;
+                            if (parsed.description) gameDesc = parsed.description;
+                          } else {
+                            const trimmed = codeString.trim().toLowerCase();
+                            if (trimmed.includes("chess")) gameType = "chess";
+                            else if (trimmed.includes("whot") || trimmed.includes("card") || trimmed.includes("white")) gameType = "whot";
+                            else if (trimmed.includes("shooter") || trimmed.includes("3d") || trimmed.includes("fire")) gameType = "3d-shooter";
+                            else gameType = "checkers";
+                          }
+
+                          const gameIcons: Record<string, { icon: any; color: string; label: string; bg: string }> = {
+                            checkers: { icon: Award, color: "text-red-500", label: "Checkers (Draughts)", bg: "from-red-500/15 via-rose-500/10 to-amber-500/10 border-red-500/30" },
+                            chess: { icon: Shield, color: "text-amber-500", label: "Chess Master AI", bg: "from-amber-500/15 via-orange-500/10 to-amber-600/10 border-amber-500/30" },
+                            cards: { icon: Layers, color: "text-emerald-500", label: "Whot & Classic Cards", bg: "from-emerald-500/15 via-teal-500/10 to-cyan-500/10 border-emerald-500/30" },
+                            whot: { icon: Layers, color: "text-emerald-500", label: "Whot & Classic Cards", bg: "from-emerald-500/15 via-teal-500/10 to-cyan-500/10 border-emerald-500/30" },
+                            "3d-shooter": { icon: Crosshair, color: "text-sky-500", label: "3D Battle Shooter (Free Fire)", bg: "from-sky-500/15 via-blue-500/10 to-cyan-500/10 border-sky-500/30" },
+                            shooter: { icon: Crosshair, color: "text-sky-500", label: "3D Battle Shooter (Free Fire)", bg: "from-sky-500/15 via-blue-500/10 to-cyan-500/10 border-sky-500/30" },
+                          };
+
+                          const conf = gameIcons[gameType] || gameIcons.checkers;
+                          const Icon = conf.icon;
+
+                          return (
+                            <div className={`my-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-br ${conf.bg} border shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 select-none`}>
+                              <div className="flex items-center space-x-3.5">
+                                <div className="w-11 h-11 rounded-2xl bg-slate-900 text-amber-400 flex items-center justify-center shadow-md shrink-0 border border-slate-700">
+                                  <Icon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-[11px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center space-x-1">
+                                      <Gamepad2 className="w-3.5 h-3.5 inline" />
+                                      <span>Interactive Game</span>
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/70 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">
+                                      Live AI
+                                    </span>
+                                  </div>
+                                  <h4 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-zinc-100">
+                                    {gameTitle || conf.label}
+                                  </h4>
+                                  <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                                    {gameDesc}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => onOpenGame && onOpenGame(gameType)}
+                                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg shadow-amber-500/25 active:scale-95 transition-all cursor-pointer"
+                              >
+                                <Play className="w-4 h-4 fill-current" />
+                                <span>Start {gameType === "3d-shooter" ? "3D Shooter" : gameType === "whot" || gameType === "cards" ? "Whot Cards" : gameType.charAt(0).toUpperCase() + gameType.slice(1)}</span>
+                              </button>
+                            </div>
+                          );
+                        } catch (e) {
+                          // Continue to regular code block
+                        }
+                      }
 
                       // Check if this is an interactive Quiz specification (Claude-style practice test)
                       if (

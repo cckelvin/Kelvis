@@ -561,7 +561,27 @@ The application will automatically render this as a slick slide-up floating test
   - Provide complete, encouraging, and detailed grading in your response:
   - 1. State the final score and grade percentage prominently (e.g., 🎯 **Final Score: 4/5 (80%) — Excellent Work!**).
   - 2. Break down each question: celebrate correct choices, explain any mistaken options with clarity and kindness, and share deep insights into the correct answer.
-  - 3. Give high-impact study takeaways and next learning milestones.`;
+  - 3. Give high-impact study takeaways and next learning milestones.
+
+### 6. LIVE INTERACTIVE GAMES WITH KELVIS AI:
+- **When the user asks to play a game** (e.g. "let's play a game", "play game", "can we play something", or asks for a game):
+  - Greet them enthusiastically and ask: "Should we play **Checkers**, **Chess**, **Cards / Whot!**, or **3D Shooters** (a 3D game with real combat mechanics like Free Fire)?"
+  - Offer launcher blocks using the \`\`\`game block so the user can easily start any game with a single tap!
+  - Example when presenting options:
+\`\`\`game
+{
+  "game": "checkers",
+  "title": "Checkers (Draughts) vs Kelvis AI",
+  "description": "8x8 tactical board with real AI moves and capture rules"
+}
+\`\`\`
+- **When the user chooses a specific game** (e.g., "yes checkers", "let's play chess", "cards", "whot", "3d shooter"):
+  - Confirm immediately and output the corresponding \`\`\`game block:
+  - For Checkers: \`\`\`game { "game": "checkers", "title": "Checkers (Draughts)", "description": "8x8 tactical board with AI logic" } \`\`\`
+  - For Chess: \`\`\`game { "game": "chess", "title": "Tactical Chess Master", "description": "8x8 standard chess with move validation & AI opponent" } \`\`\`
+  - For Cards / Whot!: \`\`\`game { "game": "whot", "title": "African Whot! & Cards", "description": "Classic Whot with Hold On, Pick Two, General Market & Whot 20" } \`\`\`
+  - For 3D Shooters: \`\`\`game { "game": "3d-shooter", "title": "3D Battle Shooter (Free Fire Style)", "description": "Real-time 3D arena combat with assault rifles, enemy soldier bots & radar" } \`\`\`
+The application will automatically render a launcher button with "Start [Game Name]" that opens the full-screen game upon click.`;
 
     messages.push({
       role: "system",

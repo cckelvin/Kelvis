@@ -14,6 +14,7 @@ import {
   Globe,
   Layers,
   ChevronRight,
+  Gamepad2,
 } from "lucide-react";
 
 interface AppItem {
@@ -26,7 +27,7 @@ interface AppItem {
   badge: string;
   badgeColor: string;
   url?: string;
-  actionType: "binance" | "bouk" | "spotify" | "wave" | "external";
+  actionType: "binance" | "bouk" | "spotify" | "wave" | "games" | "external";
 }
 
 interface AppsModalProps {
@@ -35,6 +36,7 @@ interface AppsModalProps {
   onLaunchBinance: () => void;
   onLaunchBouk: () => void;
   onLaunchSpotify: () => void;
+  onLaunchGames?: () => void;
 }
 
 export const AppsModal: React.FC<AppsModalProps> = ({
@@ -43,12 +45,25 @@ export const AppsModal: React.FC<AppsModalProps> = ({
   onLaunchBinance,
   onLaunchBouk,
   onLaunchSpotify,
+  onLaunchGames,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [waveStoreOpen, setWaveStoreOpen] = useState<boolean>(false);
 
   const apps: AppItem[] = [
+    {
+      id: "games",
+      name: "Kelvis Game Arena",
+      category: "Games & Entertainment",
+      description:
+        "Play live games with Kelvis AI including Checkers (Draughts), Tactical Chess, classic African Whot Cards, and a real-time 3D Free Fire-style Battle Arena Shooter.",
+      icon: <Gamepad2 className="w-6 h-6 text-amber-500" />,
+      iconBg: "bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/30",
+      badge: "Live 3D & AI",
+      badgeColor: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+      actionType: "games",
+    },
     {
       id: "binance",
       name: "Binance Live Market",
@@ -112,7 +127,10 @@ export const AppsModal: React.FC<AppsModalProps> = ({
   });
 
   const handleLaunchApp = (app: AppItem) => {
-    if (app.actionType === "binance") {
+    if (app.actionType === "games") {
+      onClose();
+      if (onLaunchGames) onLaunchGames();
+    } else if (app.actionType === "binance") {
       onClose();
       onLaunchBinance();
     } else if (app.actionType === "bouk") {

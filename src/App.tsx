@@ -14,7 +14,8 @@ import { BinanceMarketModal } from "./components/BinanceMarketModal";
 import { BoukModal } from "./components/BoukModal";
 import { AppsModal } from "./components/AppsModal";
 import { QuickQuizDrawer } from "./components/QuickQuizDrawer";
-import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack, QuizPayload } from "./types";
+import { GameArenaModal } from "./components/games/GameArenaModal";
+import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack, QuizPayload, GameType } from "./types";
 import { Trash2, Download, RotateCcw, Sparkles } from "lucide-react";
 import {
   fetchSupabaseSessions,
@@ -99,6 +100,8 @@ export default function App() {
   const [isBoukOpen, setIsBoukOpen] = useState<boolean>(false);
   const [isQuizOpen, setIsQuizOpen] = useState<boolean>(false);
   const [activeQuiz, setActiveQuiz] = useState<QuizPayload | null>(null);
+  const [isGameOpen, setIsGameOpen] = useState<boolean>(false);
+  const [activeGame, setActiveGame] = useState<GameType>("checkers");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showOptionsMenu, setShowOptionsMenu] = useState<boolean>(false);
 
@@ -660,6 +663,10 @@ export default function App() {
                   setActiveQuiz(quiz);
                   setIsQuizOpen(true);
                 }}
+                onOpenGame={(game) => {
+                  setActiveGame(game);
+                  setIsGameOpen(true);
+                }}
                 isStreaming={
                   isLoading &&
                   idx === activeSession.messages.length - 1 &&
@@ -834,6 +841,17 @@ export default function App() {
         onLaunchBinance={() => setIsBinanceModalOpen(true)}
         onLaunchBouk={() => setIsBoukOpen(true)}
         onLaunchSpotify={() => setIsSpotifyOpen(true)}
+        onLaunchGames={() => {
+          setActiveGame("checkers");
+          setIsGameOpen(true);
+        }}
+      />
+
+      {/* Kelvis AI Live Interactive Game Arena Modal */}
+      <GameArenaModal
+        isOpen={isGameOpen}
+        onClose={() => setIsGameOpen(false)}
+        initialGame={activeGame}
       />
     </div>
   );

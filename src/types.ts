@@ -73,6 +73,15 @@ export interface QuizPayload {
   questions: QuizQuestion[];
 }
 
+export type GameType = "checkers" | "chess" | "cards" | "whot" | "3d-shooter" | "shooter";
+
+export interface GamePayload {
+  game: GameType | "all";
+  title: string;
+  description?: string;
+  options?: string[];
+}
+
 export interface Bouk {
   id: string;
   title: string;
