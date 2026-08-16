@@ -9,7 +9,6 @@ import {
   Type,
   Sun,
   Moon,
-  Sparkles,
   Bookmark,
   Share2,
   Check,
@@ -17,17 +16,12 @@ import {
   List,
   Layers,
   ArrowLeft,
-  FileText,
-  HelpCircle,
-  GraduationCap
+  FileText
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Bouk, BoukChapter, BoukPage } from "../types";
+import { Bouk } from "../types";
 
 interface BoukReaderProps {
   bouk: Bouk;
-  initialChapterIndex?: number;
   initialPageIndex?: number;
   onClose: () => void;
   onAskAI?: (prompt: string) => void;
@@ -35,13 +29,26 @@ interface BoukReaderProps {
 
 export const BoukReader: React.FC<BoukReaderProps> = ({
   bouk,
-  initialChapterIndex = 0,
-  initialPageIndex = 0,
+  initialPageIndex = 1,
   onClose,
-  onAskAI,
 }) => {
-  const [currentChapterIdx, setCurrentChapterIdx] = useState(initialChapterIndex);
-  const [currentPageIdx, setCurrentPageIdx] = useState(initialPageIndex);
+  // Collect all available pages (1 to 100)
+  const availablePageNumbers: number[] = [];
+  for (let i = 1; i <= 100; i++) {
+    const col = `page_${i}`;
+    if (bouk[col] !== undefined && bouk[col] !== null && String(bouk[col]).trim() !== "") {
+      availablePageNumbers.push(i);
+    }
+  }
+
+  // If no pages exist yet, default to page 1
+  const pagesList = availablePageNumbers.length > 0 ? availablePageNumbers : [1];
+
+  const [currentPageNum, setCurrentPageNum] = useState<number>(() => {
+    if (pagesList.includes(initialPageIndex)) return initialPageIndex;
+    return pagesList[0] || 1;
+  });
+
   const [readingTheme, setReadingTheme] = useState<"light" | "sepia" | "dark">("light");
   const [fontSize, setFontSize] = useState<"sm" | "base" | "lg" | "xl">("base");
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -50,23 +57,18 @@ export const BoukReader: React.FC<BoukReaderProps> = ({
   const [searchTerm, setSearchTerm] = useState("");
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Flatten pages for total count calculation
-  const allPages: { chapter: BoukChapter; page: BoukPage; chapIdx: number; pageIdx: number }[] = [];
-  bouk.chapters.forEach((chap, cIdx) => {
-    chap.pages.forEach((p, pIdx) => {
-      allPages.push({ chapter: chap, page: p, chapIdx: cIdx, pageIdx: pIdx });
-    });
-  });
+  // Get current page HTML content
+  const currentPageKey = `page_${currentPageNum}`;
+  const currentPageHtml: string =
+    bouk[currentPageKey] ||
+    `<div class="p-6 text-center text-slate-500 dark:text-zinc-400">
+      <p class="text-base font-semibold">Page ${currentPageNum} is currently empty.</p>
+      <p class="text-xs mt-1">You can author HTML content for this page in the Publish Bouk tab.</p>
+    </div>`;
 
-  const currentChapter = bouk.chapters[currentChapterIdx] || bouk.chapters[0];
-  const currentPage = currentChapter?.pages[currentPageIdx] || currentChapter?.pages[0];
-
-  // Current page absolute index (1-based)
-  const currentGlobalIndex =
-    allPages.findIndex(
-      (item) => item.chapIdx === currentChapterIdx && item.pageIdx === currentPageIdx
-    ) + 1;
-  const totalGlobalPages = Math.max(allPages.length, 1);
+  const currentIndexInList = pagesList.indexOf(currentPageNum);
+  const hasPrev = currentIndexInList > 0;
+  const hasNext = currentIndexInList < pagesList.length - 1;
 
   // Scroll to top whenever page changes
   useEffect(() => {
@@ -78,439 +80,373 @@ export const BoukReader: React.FC<BoukReaderProps> = ({
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
     }
-  }, [currentChapterIdx, currentPageIdx]);
+  }, [currentPageNum]);
 
   // Handle previous page
   const handlePrevPage = () => {
-    if (currentPageIdx > 0) {
-      setCurrentPageIdx(currentPageIdx - 1);
-    } else if (currentChapterIdx > 0) {
-      const prevChapIdx = currentChapterIdx - 1;
-      const prevChap = bouk.chapters[prevChapIdx];
-      setCurrentChapterIdx(prevChapIdx);
-      setCurrentPageIdx(Math.max(0, prevChap.pages.length - 1));
+    if (hasPrev) {
+      setCurrentPageNum(pagesList[currentIndexInList - 1]);
     }
   };
 
   // Handle next page
   const handleNextPage = () => {
-    if (currentPageIdx < (currentChapter?.pages.length || 0) - 1) {
-      setCurrentPageIdx(currentPageIdx + 1);
-    } else if (currentChapterIdx < bouk.chapters.length - 1) {
-      setCurrentChapterIdx(currentChapterIdx + 1);
-      setCurrentPageIdx(0);
+    if (hasNext) {
+      setCurrentPageNum(pagesList[currentIndexInList + 1]);
     }
   };
 
-  const hasPrev = currentChapterIdx > 0 || currentPageIdx > 0;
-  const hasNext =
-    currentChapterIdx < bouk.chapters.length - 1 ||
-    currentPageIdx < (currentChapter?.pages.length || 0) - 1;
-
-  // Text-To-Speech
+  // Text to speech (TTS)
   const toggleSpeech = () => {
-    if (!("speechSynthesis" in window)) {
-      alert("Text-to-speech is not supported in this browser.");
-      return;
-    }
+    if (!("speechSynthesis" in window)) return;
 
     if (isSpeaking) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
     } else {
-      window.speechSynthesis.cancel();
-      const plainText = `${currentPage?.title || ""}. ${currentPage?.content?.replace(/[#*`$\\]/g, "") || ""}`;
+      // Extract plain text from HTML
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = currentPageHtml;
+      const plainText = tempDiv.textContent || tempDiv.innerText || "";
+
+      if (!plainText.trim()) return;
+
       const utterance = new SpeechSynthesisUtterance(plainText);
-      utterance.rate = 1.0;
+      utterance.rate = 0.95;
       utterance.pitch = 1.0;
       utterance.onend = () => setIsSpeaking(false);
       utterance.onerror = () => setIsSpeaking(false);
+
       window.speechSynthesis.speak(utterance);
       setIsSpeaking(true);
     }
   };
 
-  // Ask AI about this page
-  const handleAskAIAboutPage = () => {
-    if (!onAskAI || !currentPage) return;
-    const prompt = `From the Bouk **"${bouk.title}"** (by ${bouk.author}), regarding **Chapter ${currentChapter?.chapterNumber}: ${currentChapter?.title}** - *Page ${currentPage.pageNumber}: ${currentPage.title}*:\n\n` +
-      `Could you explain, solve, and provide comprehensive insights for the following content:\n\n` +
-      `"""\n${currentPage.content}\n"""`;
-    onAskAI(prompt);
-    onClose();
+  // Font size class mapping
+  const getFontSizeClass = () => {
+    switch (fontSize) {
+      case "sm":
+        return "text-sm leading-relaxed";
+      case "lg":
+        return "text-lg leading-relaxed";
+      case "xl":
+        return "text-xl leading-loose";
+      default:
+        return "text-base leading-relaxed";
+    }
   };
 
-  // Share link / copy
-  const handleShare = () => {
-    navigator.clipboard.writeText(
-      `Check out "${bouk.title}" on .Bouk Open Access Library!`
-    );
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
+  // Theme styling mapping
+  const getThemeClass = () => {
+    switch (readingTheme) {
+      case "sepia":
+        return "bg-[#fbf0d9] text-[#5f4b32] border-[#e7d8bd]";
+      case "dark":
+        return "bg-zinc-950 text-zinc-200 border-zinc-800";
+      default:
+        return "bg-white text-slate-900 border-slate-200 dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-800";
+    }
   };
 
-  // Theme Styles
-  const themeClasses = {
-    light: "bg-slate-50 text-slate-900",
-    sepia: "bg-[#fbf0d9] text-[#433422]",
-    dark: "bg-zinc-950 text-zinc-100",
-  };
-
-  const containerThemeClasses = {
-    light: "bg-white border-slate-200 shadow-sm",
-    sepia: "bg-[#f4e6c9] border-[#e1cfad] shadow-sm text-[#433422]",
-    dark: "bg-zinc-900 border-zinc-800 shadow-xl",
-  };
-
-  const fontSizes = {
-    sm: "text-sm leading-relaxed",
-    base: "text-base leading-relaxed",
-    lg: "text-lg leading-loose",
-    xl: "text-xl leading-loose",
+  const getReaderHeaderClass = () => {
+    switch (readingTheme) {
+      case "sepia":
+        return "bg-[#f4e6c9] border-[#e7d8bd] text-[#5f4b32]";
+      case "dark":
+        return "bg-zinc-900 border-zinc-800 text-zinc-100";
+      default:
+        return "bg-white/95 dark:bg-zinc-900/95 border-slate-200 dark:border-zinc-800 text-slate-800 dark:text-zinc-100 backdrop-blur";
+    }
   };
 
   return (
-    <div className={`fixed inset-0 z-50 flex flex-col select-none transition-colors duration-200 ${themeClasses[readingTheme]}`}>
-      {/* Top Reading Navigation Bar */}
-      <header className="px-4 py-3 border-b flex items-center justify-between shrink-0 backdrop-blur-md bg-opacity-95 z-20 border-slate-200/40 dark:border-zinc-800/40">
-        {/* Left: Back & TOC Toggle */}
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={onClose}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-zinc-700 hover:bg-black/5 dark:hover:bg-white/10 text-xs font-semibold transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Library</span>
-          </button>
-
-          <button
-            onClick={() => setIsTocOpen(!isTocOpen)}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
-              isTocOpen
-                ? "bg-amber-500 text-white border-amber-600"
-                : "border-slate-300 dark:border-zinc-700 hover:bg-black/5 dark:hover:bg-white/10"
-            }`}
-            title="Table of Contents"
-          >
-            <List className="w-4 h-4" />
-            <span className="hidden md:inline">Contents</span>
-          </button>
-        </div>
-
-        {/* Center: Title & Chapter */}
-        <div className="text-center px-4 max-w-md sm:max-w-xl truncate">
-          <div className="text-xs font-semibold opacity-70 truncate">
-            {bouk.title}
-          </div>
-          <div className="text-xs font-bold text-amber-600 dark:text-amber-400 truncate">
-            Ch {currentChapter?.chapterNumber}: {currentChapter?.title}
-          </div>
-        </div>
-
-        {/* Right: Tools & Theme */}
-        <div className="flex items-center space-x-1.5">
-          {/* Read Aloud Button */}
-          <button
-            onClick={toggleSpeech}
-            className={`p-2 rounded-xl border transition-colors cursor-pointer ${
-              isSpeaking
-                ? "bg-amber-500 text-white border-amber-600 animate-pulse"
-                : "border-slate-300 dark:border-zinc-700 hover:bg-black/5 dark:hover:bg-white/10"
-            }`}
-            title={isSpeaking ? "Stop Reading Aloud" : "Read Page Aloud (TTS)"}
-          >
-            {isSpeaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-          </button>
-
-          {/* Font Size Selector */}
-          <div className="hidden sm:flex items-center border border-slate-300 dark:border-zinc-700 rounded-xl overflow-hidden text-xs">
+    <div
+      id="bouk-full-reader"
+      className="fixed inset-0 z-50 flex flex-col bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+    >
+      <div className={`relative flex flex-col w-full h-full max-w-5xl mx-auto shadow-2xl overflow-hidden ${getThemeClass()}`}>
+        {/* Top Action Header */}
+        <header className={`flex items-center justify-between px-4 py-2.5 border-b z-20 transition-colors ${getReaderHeaderClass()}`}>
+          <div className="flex items-center space-x-2.5 overflow-hidden">
             <button
-              onClick={() => setFontSize("sm")}
-              className={`px-2 py-1.5 font-bold ${fontSize === "sm" ? "bg-amber-500 text-white" : "hover:bg-black/5 dark:hover:bg-white/10"}`}
-              title="Small text"
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-current transition"
+              title="Close Reader"
             >
-              A-
+              <ArrowLeft className="w-5 h-5" />
             </button>
-            <button
-              onClick={() => setFontSize("base")}
-              className={`px-2 py-1.5 font-bold ${fontSize === "base" ? "bg-amber-500 text-white" : "hover:bg-black/5 dark:hover:bg-white/10"}`}
-              title="Default text"
-            >
-              A
-            </button>
-            <button
-              onClick={() => setFontSize("lg")}
-              className={`px-2 py-1.5 font-bold ${fontSize === "lg" ? "bg-amber-500 text-white" : "hover:bg-black/5 dark:hover:bg-white/10"}`}
-              title="Large text"
-            >
-              A+
-            </button>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-600 truncate">
+                {bouk.categoryName} • Grade: {bouk.gradeLevel || "Open Access"}
+              </span>
+              <h1 className="text-sm font-semibold truncate text-current max-w-md">
+                {bouk.title}
+              </h1>
+            </div>
           </div>
 
-          {/* Reading Theme Toggle */}
-          <div className="flex items-center border border-slate-300 dark:border-zinc-700 rounded-xl overflow-hidden p-0.5">
+          <div className="flex items-center space-x-1 sm:space-x-2">
+            {/* Table of Pages Drawer Trigger */}
             <button
-              onClick={() => setReadingTheme("light")}
-              className={`p-1.5 rounded-lg text-xs transition-colors ${
-                readingTheme === "light" ? "bg-amber-500 text-white font-bold" : "hover:bg-black/5"
+              onClick={() => setIsTocOpen(!isTocOpen)}
+              className={`p-2 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition ${
+                isTocOpen
+                  ? "bg-amber-600 text-white"
+                  : "hover:bg-black/5 dark:hover:bg-white/5 text-current"
               }`}
-              title="Clean Light Theme"
+              title="Table of 100 Pages"
             >
-              <Sun className="w-3.5 h-3.5" />
+              <List className="w-4 h-4" />
+              <span className="hidden sm:inline">Page Index ({pagesList.length})</span>
             </button>
+
+            {/* Read Aloud TTS */}
             <button
-              onClick={() => setReadingTheme("sepia")}
-              className={`px-2 py-1 rounded-lg text-xs transition-colors font-serif ${
-                readingTheme === "sepia" ? "bg-[#e5d4b3] text-[#433422] font-bold" : "hover:bg-black/5"
+              onClick={toggleSpeech}
+              className={`p-2 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition ${
+                isSpeaking
+                  ? "bg-emerald-600 text-white animate-pulse"
+                  : "hover:bg-black/5 dark:hover:bg-white/5 text-current"
               }`}
-              title="Sepia Book Paper Theme"
+              title={isSpeaking ? "Stop Voice" : "Read Aloud"}
             >
-              Sepia
+              {isSpeaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              <span className="hidden md:inline">{isSpeaking ? "Stop" : "Read"}</span>
             </button>
-            <button
-              onClick={() => setReadingTheme("dark")}
-              className={`p-1.5 rounded-lg text-xs transition-colors ${
-                readingTheme === "dark" ? "bg-zinc-800 text-zinc-100 font-bold" : "hover:bg-white/10"
-              }`}
-              title="Dark Obsidian Theme"
-            >
-              <Moon className="w-3.5 h-3.5" />
-            </button>
-          </div>
 
-          {/* Ask Kelvis AI Button */}
-          {onAskAI && (
-            <button
-              onClick={handleAskAIAboutPage}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-semibold text-xs shadow-xs hover:opacity-95 transition-all cursor-pointer"
-              title="Ask Kelvis AI to explain or solve this page"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Ask Kelvis</span>
-            </button>
-          )}
+            {/* Font Size Adjust */}
+            <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-lg p-0.5 text-xs font-medium">
+              {(["sm", "base", "lg"] as const).map((sz) => (
+                <button
+                  key={sz}
+                  onClick={() => setFontSize(sz)}
+                  className={`px-2 py-1 rounded capitalize transition ${
+                    fontSize === sz
+                      ? "bg-white dark:bg-zinc-800 text-amber-600 shadow-sm font-bold"
+                      : "opacity-70 hover:opacity-100"
+                  }`}
+                >
+                  {sz === "sm" ? "A-" : sz === "base" ? "A" : "A+"}
+                </button>
+              ))}
+            </div>
 
-          {/* Close */}
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-      </header>
-
-      {/* Main Body */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Table of Contents Drawer / Sidebar */}
-        {isTocOpen && (
-          <aside className="w-80 border-r border-slate-200 dark:border-zinc-800 flex flex-col bg-white dark:bg-zinc-900 z-10 shadow-xl overflow-hidden shrink-0">
-            <div className="p-4 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
-              <div className="font-bold text-sm flex items-center space-x-2">
-                <BookOpen className="w-4 h-4 text-amber-500" />
-                <span>Table of Contents</span>
-              </div>
+            {/* Reading Theme Selector */}
+            <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-lg p-0.5">
               <button
-                onClick={() => setIsTocOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 rounded-lg"
+                onClick={() => setReadingTheme("light")}
+                className={`p-1.5 rounded transition ${
+                  readingTheme === "light" ? "bg-white text-amber-600 shadow-sm" : "opacity-70"
+                }`}
+                title="Light Theme"
               >
-                <X className="w-4 h-4" />
+                <Sun className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setReadingTheme("sepia")}
+                className={`px-2 py-0.5 text-xs font-serif font-bold rounded transition ${
+                  readingTheme === "sepia" ? "bg-[#e7d8bd] text-[#5f4b32] shadow-sm" : "opacity-70"
+                }`}
+                title="Sepia Book Theme"
+              >
+                S
+              </button>
+              <button
+                onClick={() => setReadingTheme("dark")}
+                className={`p-1.5 rounded transition ${
+                  readingTheme === "dark" ? "bg-zinc-800 text-amber-400 shadow-sm" : "opacity-70"
+                }`}
+                title="Dark Reading"
+              >
+                <Moon className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-4">
-              {bouk.chapters.map((chap, cIdx) => (
-                <div key={chap.id || cIdx} className="space-y-1">
-                  <div className="text-xs font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider px-2 py-1">
-                    Chapter {chap.chapterNumber}: {chap.title}
-                  </div>
-                  <div className="space-y-0.5 pl-2">
-                    {chap.pages.map((p, pIdx) => {
-                      const isCurrent =
-                        cIdx === currentChapterIdx && pIdx === currentPageIdx;
-                      return (
-                        <button
-                          key={p.id || pIdx}
-                          onClick={() => {
-                            setCurrentChapterIdx(cIdx);
-                            setCurrentPageIdx(pIdx);
-                            if (window.innerWidth < 768) setIsTocOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer ${
-                            isCurrent
-                              ? "bg-amber-500 text-white font-bold shadow-xs"
-                              : "text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800"
-                          }`}
-                        >
-                          <span className="truncate pr-2">
-                            {p.pageNumber}. {p.title}
-                          </span>
-                          <span className="text-[10px] opacity-70 shrink-0">
-                            p.{p.pageNumber}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </aside>
-        )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-current transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </header>
 
-        {/* Reader Canvas (Centered Paper Layout) */}
-        <main
-          ref={contentRef}
-          className="flex-1 overflow-y-auto p-4 sm:p-8 flex justify-center selection:bg-amber-500/30"
-        >
-          <div
-            className={`w-full max-w-3xl rounded-3xl p-6 sm:p-12 transition-colors duration-200 border ${containerThemeClasses[readingTheme]}`}
-          >
-            {/* Page Header Metadata */}
-            <div className="border-b border-black/10 dark:border-white/10 pb-4 mb-6 flex flex-wrap items-center justify-between gap-2 text-xs opacity-75">
-              <div className="flex items-center space-x-2">
-                <span className="px-2 py-0.5 rounded-md font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                  {bouk.classification.toUpperCase()}
+        {/* Reader Layout (Main HTML view + Pages Drawer) */}
+        <div className="relative flex-1 flex overflow-hidden">
+          {/* Table of 100 Pages Drawer */}
+          {isTocOpen && (
+            <aside className="w-72 sm:w-80 border-r border-inherit bg-inherit flex flex-col z-30 shadow-xl animate-in slide-in-from-left duration-200">
+              <div className="p-3 border-b border-inherit flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider opacity-80 flex items-center space-x-1.5">
+                  <Layers className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Book Pages (1–100)</span>
                 </span>
-                <span>•</span>
-                <span>{bouk.author}</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span>Page {currentPage?.pageNumber || 1} of {totalGlobalPages}</span>
-                <span>•</span>
-                <span className="font-semibold">{bouk.gradeLevel || "Open Access"}</span>
-              </div>
-            </div>
-
-            {/* Page Title */}
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight mb-6 text-balance">
-              {currentPage?.title}
-            </h1>
-
-            {/* Markdown Content */}
-            <div className={`prose dark:prose-invert max-w-none ${fontSizes[fontSize]}`}>
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  h1: ({ children }) => (
-                    <h2 className="text-xl font-bold mt-6 mb-3 border-b pb-2 border-black/10 dark:border-white/10">
-                      {children}
-                    </h2>
-                  ),
-                  h2: ({ children }) => (
-                    <h3 className="text-lg font-bold mt-5 mb-2">{children}</h3>
-                  ),
-                  h3: ({ children }) => (
-                    <h4 className="text-base font-bold mt-4 mb-2 text-amber-600 dark:text-amber-400">
-                      {children}
-                    </h4>
-                  ),
-                  table: ({ children }) => (
-                    <div className="overflow-x-auto my-4 rounded-xl border border-slate-300 dark:border-zinc-700">
-                      <table className="w-full text-xs text-left border-collapse">
-                        {children}
-                      </table>
-                    </div>
-                  ),
-                  th: ({ children }) => (
-                    <th className="px-3 py-2 bg-slate-100 dark:bg-zinc-800 font-bold border-b border-slate-300 dark:border-zinc-700">
-                      {children}
-                    </th>
-                  ),
-                  td: ({ children }) => (
-                    <td className="px-3 py-2 border-b border-slate-200 dark:border-zinc-800">
-                      {children}
-                    </td>
-                  ),
-                  blockquote: ({ children }) => (
-                    <div className="my-4 p-4 rounded-2xl bg-amber-500/10 border-l-4 border-amber-500 italic text-sm">
-                      {children}
-                    </div>
-                  ),
-                  code: ({ children }) => (
-                    <code className="px-1.5 py-0.5 rounded-md bg-black/10 dark:bg-white/10 font-mono text-xs">
-                      {children}
-                    </code>
-                  ),
-                }}
-              >
-                {currentPage?.content || "No content found for this page."}
-              </ReactMarkdown>
-            </div>
-
-            {/* AI Action Box in Bottom of Page */}
-            {onAskAI && (
-              <div className="mt-12 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2.5 rounded-xl bg-amber-500 text-white shadow-xs">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-sm text-slate-900 dark:text-zinc-100">
-                      Have questions about this past question or chapter?
-                    </div>
-                    <div className="text-xs text-slate-500 dark:text-zinc-400">
-                      Kelvis AI can explain concepts, solve equations step-by-step, or generate practice quizzes.
-                    </div>
-                  </div>
-                </div>
                 <button
-                  onClick={handleAskAIAboutPage}
-                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-xs transition-colors shrink-0 cursor-pointer"
+                  onClick={() => setIsTocOpen(false)}
+                  className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 text-xs opacity-70"
                 >
-                  Solve with Kelvis AI
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            )}
-          </div>
-        </main>
-      </div>
 
-      {/* Bottom Paging Footer Bar */}
-      <footer className="px-4 py-3 border-t flex items-center justify-between shrink-0 bg-opacity-95 backdrop-blur-md z-20 border-slate-200/40 dark:border-zinc-800/40">
-        {/* Previous Page */}
-        <button
-          onClick={handlePrevPage}
-          disabled={!hasPrev}
-          className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
-            hasPrev
-              ? "border-slate-300 dark:border-zinc-700 hover:bg-black/5 dark:hover:bg-white/10"
-              : "opacity-40 cursor-not-allowed border-transparent"
-          }`}
-        >
-          <ChevronLeft className="w-4 h-4" />
-          <span>Previous Page</span>
-        </button>
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                {Array.from({ length: 100 }, (_, idx) => idx + 1).map((pageNum) => {
+                  const hasContent = availablePageNumbers.includes(pageNum);
+                  const isCurrent = pageNum === currentPageNum;
 
-        {/* Page Slider / Progress Bar */}
-        <div className="flex flex-col items-center max-w-xs sm:max-w-md w-full px-4">
-          <div className="text-xs font-medium opacity-80 mb-1">
-            Page {currentGlobalIndex} of {totalGlobalPages} ({Math.round((currentGlobalIndex / totalGlobalPages) * 100)}%)
-          </div>
-          <div className="w-full bg-slate-200 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
-            <div
-              className="bg-amber-500 h-full transition-all duration-300 rounded-full"
-              style={{
-                width: `${(currentGlobalIndex / totalGlobalPages) * 100}%`,
-              }}
-            />
-          </div>
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => {
+                        setCurrentPageNum(pageNum);
+                        setIsTocOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left text-xs transition ${
+                        isCurrent
+                          ? "bg-amber-600 text-white font-bold shadow"
+                          : hasContent
+                          ? "hover:bg-black/5 dark:hover:bg-white/5 opacity-90"
+                          : "opacity-40 hover:opacity-70"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2 truncate">
+                        <span
+                          className={`w-6 h-6 rounded-md flex items-center justify-center font-mono text-[11px] ${
+                            isCurrent
+                              ? "bg-white/20 text-white"
+                              : hasContent
+                              ? "bg-amber-500/20 text-amber-600"
+                              : "bg-black/5 dark:bg-white/5 text-current"
+                          }`}
+                        >
+                          {pageNum}
+                        </span>
+                        <span className="truncate">Page {pageNum}</span>
+                      </div>
+                      {hasContent && !isCurrent && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
+          )}
+
+          {/* Main Book Page HTML Reader Container */}
+          <main
+            ref={contentRef}
+            className={`flex-1 overflow-y-auto p-6 sm:p-10 md:p-14 ${getFontSizeClass()}`}
+          >
+            <div className="max-w-3xl mx-auto space-y-6">
+              {/* Page Header Bar */}
+              <div className="flex items-center justify-between border-b border-inherit pb-4">
+                <div className="flex items-center space-x-2">
+                  <div className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 font-mono text-xs font-bold border border-amber-500/20">
+                    Page {currentPageNum} of 100
+                  </div>
+                  <span className="text-xs opacity-60">
+                    By {bouk.author}
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.href);
+                      setCopiedLink(true);
+                      setTimeout(() => setCopiedLink(false), 2000);
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-xs opacity-80 flex items-center space-x-1"
+                    title="Share Page"
+                  >
+                    {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Share2 className="w-3.5 h-3.5" />}
+                    <span className="text-[11px]">{copiedLink ? "Copied" : "Share"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* RENDER NATIVE HTML CONTENT */}
+              <div
+                className="bouk-html-page-content font-serif prose dark:prose-invert max-w-none space-y-4"
+                dangerouslySetInnerHTML={{ __html: currentPageHtml }}
+              />
+
+              {/* End of Page Navigation Pill */}
+              <div className="pt-8 mt-12 border-t border-inherit flex items-center justify-between">
+                <button
+                  disabled={!hasPrev}
+                  onClick={handlePrevPage}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+                    hasPrev
+                      ? "bg-black/5 dark:bg-white/5 hover:bg-black/10 text-current"
+                      : "opacity-30 cursor-not-allowed"
+                  }`}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Previous Page</span>
+                </button>
+
+                <span className="text-xs font-mono opacity-60">
+                  Page {currentPageNum} / 100
+                </span>
+
+                <button
+                  disabled={!hasNext}
+                  onClick={handleNextPage}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+                    hasNext
+                      ? "bg-amber-600 text-white hover:bg-amber-700 shadow-md shadow-amber-600/20"
+                      : "opacity-30 cursor-not-allowed"
+                  }`}
+                >
+                  <span>Next Page</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </main>
         </div>
 
-        {/* Next Page */}
-        <button
-          onClick={handleNextPage}
-          disabled={!hasNext}
-          className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-semibold transition-all shadow-xs cursor-pointer ${
-            hasNext
-              ? "hover:opacity-90"
-              : "opacity-40 cursor-not-allowed"
-          }`}
-        >
-          <span>Next Page</span>
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </footer>
+        {/* Reader Bottom Navigation Bar */}
+        <footer className={`flex items-center justify-between px-6 py-3 border-t text-xs font-medium z-20 ${getReaderHeaderClass()}`}>
+          <button
+            disabled={!hasPrev}
+            onClick={handlePrevPage}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg transition ${
+              hasPrev ? "hover:bg-black/5 dark:hover:bg-white/5 text-current" : "opacity-30 cursor-not-allowed"
+            }`}
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Prev</span>
+          </button>
+
+          {/* Quick Page Slider */}
+          <div className="flex items-center space-x-3 max-w-sm w-full mx-4">
+            <span className="font-mono text-[11px] opacity-70">1</span>
+            <input
+              type="range"
+              min={1}
+              max={100}
+              value={currentPageNum}
+              onChange={(e) => setCurrentPageNum(Number(e.target.value))}
+              className="w-full accent-amber-600 cursor-pointer h-1.5 bg-black/10 dark:bg-white/10 rounded-lg appearance-none"
+            />
+            <span className="font-mono text-[11px] opacity-70">100</span>
+          </div>
+
+          <button
+            disabled={!hasNext}
+            onClick={handleNextPage}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg transition ${
+              hasNext ? "hover:bg-black/5 dark:hover:bg-white/5 text-current" : "opacity-30 cursor-not-allowed"
+            }`}
+          >
+            <span className="hidden sm:inline">Next</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </footer>
+      </div>
     </div>
   );
 };

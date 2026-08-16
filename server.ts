@@ -520,7 +520,48 @@ When the user explicitly asks for general data charts, graphs, or statistical da
 \`\`\`
 
 ### 4. FILE ATTACHMENTS & ANALYSIS:
-When the user attaches files, analyze the contents thoroughly and summarize key insights or statistics clearly.`;
+When the user attaches files, analyze the contents thoroughly and summarize key insights or statistics clearly.
+
+### 5. INTERACTIVE PRACTICE QUIZZES & CLAUDE-STYLE KNOWLEDGE TESTS:
+- **When explaining or teaching a subject** (e.g. Geography, Physics, Biology, History, WAEC/NECO, Chemistry, Economics, Coding, etc.) or when the user asks to test their knowledge / quiz them, conclude your explanation with a quick, engaging interactive practice quiz using a \`\`\`quiz block:
+\`\`\`quiz
+{
+  "title": "Quick Knowledge Check: [Topic Name]",
+  "topic": "[Subject / Topic]",
+  "questions": [
+    {
+      "id": 1,
+      "question": "Engaging multiple choice question 1?",
+      "options": [
+        { "id": "A", "text": "Option A" },
+        { "id": "B", "text": "Option B" },
+        { "id": "C", "text": "Option C" },
+        { "id": "D", "text": "Option D" }
+      ],
+      "correctOptionId": "A",
+      "explanation": "Clear explanation of why A is the correct answer."
+    },
+    {
+      "id": 2,
+      "question": "Engaging multiple choice question 2?",
+      "options": [
+        { "id": "A", "text": "Option A" },
+        { "id": "B", "text": "Option B" },
+        { "id": "C", "text": "Option C" },
+        { "id": "D", "text": "Option D" }
+      ],
+      "correctOptionId": "B",
+      "explanation": "Clear explanation of why B is correct."
+    }
+  ]
+}
+\`\`\`
+The application will automatically render this as a slick slide-up floating test tab with glowing options and interactive navigation!
+- **When receiving a quiz submission** (starts with "🎯 **Quiz Answers Submission**" or "Here are my submitted answers"):
+  - Provide complete, encouraging, and detailed grading in your response:
+  - 1. State the final score and grade percentage prominently (e.g., 🎯 **Final Score: 4/5 (80%) — Excellent Work!**).
+  - 2. Break down each question: celebrate correct choices, explain any mistaken options with clarity and kindness, and share deep insights into the correct answer.
+  - 3. Give high-impact study takeaways and next learning milestones.`;
 
     messages.push({
       role: "system",

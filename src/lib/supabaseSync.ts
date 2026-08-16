@@ -250,24 +250,32 @@ export async function fetchSupabaseBouks(): Promise<any[] | null> {
 
     if (!data) return [];
 
-    return data.map((b: any) => ({
-      id: b.id,
-      title: b.title,
-      author: b.author,
-      classification: b.classification,
-      categoryName: b.category_name || "General",
-      gradeLevel: b.grade_level || "General",
-      coverImage: b.cover_image || undefined,
-      coverGradient: b.cover_gradient || "from-blue-600 via-indigo-600 to-purple-800",
-      description: b.description,
-      rating: Number(b.rating) || 5.0,
-      readersCount: Number(b.readers_count) || 1,
-      chapters: Array.isArray(b.chapters) ? b.chapters : [],
-      tags: Array.isArray(b.tags) ? b.tags : [],
-      aiGuidance: b.ai_guidance || undefined,
-      createdAt: b.created_at,
-      updatedAt: b.updated_at,
-    }));
+    return data.map((b: any) => {
+      const boukObj: any = {
+        id: b.id,
+        title: b.title,
+        author: b.author,
+        classification: b.classification,
+        categoryName: b.category_name || "General",
+        gradeLevel: b.grade_level || "General",
+        coverImage: b.cover_image || undefined,
+        coverGradient: b.cover_gradient || "from-amber-600 via-orange-600 to-red-700",
+        description: b.description,
+        rating: Number(b.rating) || 5.0,
+        createdAt: b.created_at,
+        updatedAt: b.updated_at,
+      };
+
+      // Collect all page_1 through page_100 HTML columns
+      for (let i = 1; i <= 100; i++) {
+        const col = `page_${i}`;
+        if (b[col] !== undefined && b[col] !== null) {
+          boukObj[col] = b[col];
+        }
+      }
+
+      return boukObj;
+    });
   } catch (err) {
     console.warn("Could not fetch bouks from Supabase:", err);
     return null;
@@ -285,7 +293,7 @@ export async function saveSupabaseBouk(bouk: any): Promise<boolean> {
     const { data: { user } } = await supabase.auth.getUser();
     const validId = toValidUUID(bouk.id);
 
-    const payload = {
+    const payload: any = {
       id: validId,
       user_id: user?.id || null,
       title: bouk.title,
@@ -294,15 +302,19 @@ export async function saveSupabaseBouk(bouk: any): Promise<boolean> {
       category_name: bouk.categoryName,
       grade_level: bouk.gradeLevel,
       cover_image: bouk.coverImage || null,
-      cover_gradient: bouk.coverGradient || "from-blue-600 via-indigo-600 to-purple-800",
+      cover_gradient: bouk.coverGradient || "from-amber-600 via-orange-600 to-red-700",
       description: bouk.description,
       rating: bouk.rating || 5.0,
-      readers_count: (bouk.readersCount || 1) + 1,
-      chapters: bouk.chapters || [],
-      tags: bouk.tags || [],
-      ai_guidance: bouk.aiGuidance || null,
       updated_at: new Date().toISOString(),
     };
+
+    // Attach page_1 to page_100 HTML strings
+    for (let i = 1; i <= 100; i++) {
+      const col = `page_${i}`;
+      if (bouk[col] !== undefined) {
+        payload[col] = bouk[col];
+      }
+    }
 
     const { error } = await supabase
       .from("bouks")

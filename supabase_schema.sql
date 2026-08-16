@@ -128,57 +128,159 @@ CREATE POLICY "Authenticated Users Upload Chat Attachments"
   WITH CHECK (bucket_id = 'chat-attachments');
 
 -- =====================================================================
--- 5. .BOUK (OPEN ACCESS EBOOKS & AI KNOWLEDGE BASE) SCHEMA
+-- 5. .BOUK (OPEN ACCESS EBOOKS - 100 HTML PAGES AS COLUMNS)
 -- =====================================================================
-CREATE TABLE IF NOT EXISTS public.bouks (
+DROP TABLE IF EXISTS public.bouks CASCADE;
+
+CREATE TABLE public.bouks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
   author TEXT NOT NULL,
   classification TEXT NOT NULL CHECK (classification IN ('edu', 'tech', 'business', 'science', 'geo', 'humanities', 'general')),
-  category_name TEXT NOT NULL DEFAULT 'General',
-  grade_level TEXT DEFAULT 'General',
+  category_name TEXT NOT NULL DEFAULT 'Education',
+  grade_level TEXT DEFAULT 'Open Access',
   cover_image TEXT,
-  cover_gradient TEXT DEFAULT 'from-blue-600 via-indigo-600 to-purple-800',
+  cover_gradient TEXT DEFAULT 'from-amber-600 via-orange-600 to-red-700',
   description TEXT NOT NULL,
   rating NUMERIC(3, 2) DEFAULT 5.00,
-  readers_count INTEGER DEFAULT 1,
-  chapters JSONB NOT NULL DEFAULT '[]'::jsonb,
-  tags TEXT[] DEFAULT ARRAY[]::TEXT[],
-  ai_guidance TEXT,
+  page_1 TEXT,
+  page_2 TEXT,
+  page_3 TEXT,
+  page_4 TEXT,
+  page_5 TEXT,
+  page_6 TEXT,
+  page_7 TEXT,
+  page_8 TEXT,
+  page_9 TEXT,
+  page_10 TEXT,
+  page_11 TEXT,
+  page_12 TEXT,
+  page_13 TEXT,
+  page_14 TEXT,
+  page_15 TEXT,
+  page_16 TEXT,
+  page_17 TEXT,
+  page_18 TEXT,
+  page_19 TEXT,
+  page_20 TEXT,
+  page_21 TEXT,
+  page_22 TEXT,
+  page_23 TEXT,
+  page_24 TEXT,
+  page_25 TEXT,
+  page_26 TEXT,
+  page_27 TEXT,
+  page_28 TEXT,
+  page_29 TEXT,
+  page_30 TEXT,
+  page_31 TEXT,
+  page_32 TEXT,
+  page_33 TEXT,
+  page_34 TEXT,
+  page_35 TEXT,
+  page_36 TEXT,
+  page_37 TEXT,
+  page_38 TEXT,
+  page_39 TEXT,
+  page_40 TEXT,
+  page_41 TEXT,
+  page_42 TEXT,
+  page_43 TEXT,
+  page_44 TEXT,
+  page_45 TEXT,
+  page_46 TEXT,
+  page_47 TEXT,
+  page_48 TEXT,
+  page_49 TEXT,
+  page_50 TEXT,
+  page_51 TEXT,
+  page_52 TEXT,
+  page_53 TEXT,
+  page_54 TEXT,
+  page_55 TEXT,
+  page_56 TEXT,
+  page_57 TEXT,
+  page_58 TEXT,
+  page_59 TEXT,
+  page_60 TEXT,
+  page_61 TEXT,
+  page_62 TEXT,
+  page_63 TEXT,
+  page_64 TEXT,
+  page_65 TEXT,
+  page_66 TEXT,
+  page_67 TEXT,
+  page_68 TEXT,
+  page_69 TEXT,
+  page_70 TEXT,
+  page_71 TEXT,
+  page_72 TEXT,
+  page_73 TEXT,
+  page_74 TEXT,
+  page_75 TEXT,
+  page_76 TEXT,
+  page_77 TEXT,
+  page_78 TEXT,
+  page_79 TEXT,
+  page_80 TEXT,
+  page_81 TEXT,
+  page_82 TEXT,
+  page_83 TEXT,
+  page_84 TEXT,
+  page_85 TEXT,
+  page_86 TEXT,
+  page_87 TEXT,
+  page_88 TEXT,
+  page_89 TEXT,
+  page_90 TEXT,
+  page_91 TEXT,
+  page_92 TEXT,
+  page_93 TEXT,
+  page_94 TEXT,
+  page_95 TEXT,
+  page_96 TEXT,
+  page_97 TEXT,
+  page_98 TEXT,
+  page_99 TEXT,
+  page_100 TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Indexes for lightning fast searching and classification filtering
+-- Indexes for classification & fast lookup
 CREATE INDEX IF NOT EXISTS idx_bouks_classification ON public.bouks(classification);
 CREATE INDEX IF NOT EXISTS idx_bouks_created_at ON public.bouks(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_bouks_title_author ON public.bouks(title, author);
+CREATE INDEX IF NOT EXISTS idx_bouks_title ON public.bouks(title);
 
 -- Enable RLS for Bouks
 ALTER TABLE public.bouks ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Public can view all open access Bouks." ON public.bouks;
-CREATE POLICY "Public can view all open access Bouks."
-  ON public.bouks FOR SELECT
+DROP POLICY IF EXISTS "Public can view all bouks" ON public.bouks;
+CREATE POLICY "Public can view all bouks" 
+  ON public.bouks FOR SELECT 
+  TO public 
   USING (true);
 
-DROP POLICY IF EXISTS "Authenticated users can create Bouks." ON public.bouks;
-CREATE POLICY "Authenticated users can create Bouks."
-  ON public.bouks FOR INSERT
-  WITH CHECK (auth.role() = 'authenticated' OR auth.uid() IS NOT NULL OR user_id IS NULL);
+DROP POLICY IF EXISTS "Anyone can publish bouks" ON public.bouks;
+CREATE POLICY "Anyone can publish bouks" 
+  ON public.bouks FOR INSERT 
+  TO public 
+  WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Users can update their own Bouks." ON public.bouks;
-CREATE POLICY "Users can update their own Bouks."
-  ON public.bouks FOR UPDATE
-  USING (auth.uid() = user_id OR user_id IS NULL);
+DROP POLICY IF EXISTS "Anyone can update bouks" ON public.bouks;
+CREATE POLICY "Anyone can update bouks" 
+  ON public.bouks FOR UPDATE 
+  TO public 
+  USING (true);
 
-DROP POLICY IF EXISTS "Users can delete their own Bouks." ON public.bouks;
-CREATE POLICY "Users can delete their own Bouks."
-  ON public.bouks FOR DELETE
-  USING (auth.uid() = user_id OR user_id IS NULL);
+DROP POLICY IF EXISTS "Anyone can delete bouks" ON public.bouks;
+CREATE POLICY "Anyone can delete bouks" 
+  ON public.bouks FOR DELETE 
+  TO public 
+  USING (true);
 
--- Seed initial sample Bouks (WAEC/NECO & Geography)
+-- Seed initial WAEC/NECO & Geography Bouks with HTML formatted pages
 INSERT INTO public.bouks (
   id,
   title,
@@ -189,67 +291,150 @@ INSERT INTO public.bouks (
   cover_gradient,
   description,
   rating,
-  readers_count,
-  tags,
-  ai_guidance,
-  chapters
-) VALUES
+  page_1,
+  page_2,
+  page_3,
+  page_4
+) VALUES 
 (
   'a0000001-0000-0000-0000-000000000001',
-  'WAEC & NECO 2000–2026 Comprehensive Past Questions & Step-by-Step Solutions',
-  'West African Examinations Council & NECO Editorial Board',
+  'WAEC & NECO 2000–2026 Mathematics Past Questions & Solutions',
+  'WAEC Council & West African Math Teachers Guild',
   'edu',
-  'Education & Exam Preparation',
-  'Senior Secondary (SS1–SS3) / WAEC / NECO',
+  'Education & Exam Prep',
+  'Senior Secondary / WASSCE / SSCE',
   'from-amber-600 via-orange-600 to-red-700',
-  'Official open-access past examination question archive spanning 2000 to 2026 with worked solutions and marking schemes.',
+  'Complete compilation of WAEC & NECO Mathematics theory and objective past questions spanning 2000 to 2026 with step-by-step HTML workings and marking schemes.',
   4.95,
-  48200,
-  ARRAY['WAEC', 'NECO', 'Past Questions', 'Mathematics', 'Physics', 'Chemistry', 'Biology'],
-  'Contains verified WAEC/NECO senior secondary past examination questions from 2000 to 2026 for AI guidance and student prep.',
-  $json$[
-    {
-      "id": "waec-ch1-math",
-      "chapterNumber": 1,
-      "title": "General Mathematics: Algebraic Processes & Trigonometry",
-      "summary": "Core quadratic equations, simultaneous equations, and 3-figure bearings.",
-      "pages": [
-        {
-          "pageNumber": 1,
-          "title": "WAEC 2024 / 2025 Mathematics Theory Paper 2",
-          "content": "### WAEC General Mathematics\n\n#### Problem 1 (Algebraic Optimization)\nA trader purchased x bags of rice for ₦180,000. If each bag had cost ₦3,000 less, he would have bought 2 more bags.\n1. Formulate quadratic equation: x^2 + 2x - 120 = 0\n2. Factorization: (x + 12)(x - 10) = 0\n3. Result: x = 10 bags, original cost = ₦18,000 per bag."
-        }
-      ]
-    }
-  ]$json$::jsonb
+  $html$<div class="bouk-page">
+  <h2 class="text-xl font-bold text-amber-600 mb-2">WAEC Mathematics 2024 / 2025 Theory Paper 2</h2>
+  <div class="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800 mb-4">
+    <h3 class="font-bold text-base mb-1">Problem 1: Algebraic Optimization & Quadratic Modeling</h3>
+    <p class="text-sm">A trader purchased <em>x</em> bags of rice for <strong>₦180,000</strong>. If each bag had cost <strong>₦3,000</strong> less, he would have bought 2 more bags with the same amount.</p>
+  </div>
+  <h4 class="font-bold text-sm mb-2">Step-by-Step Marking Scheme Solution:</h4>
+  <ol class="list-decimal list-inside space-y-2 text-sm">
+    <li><strong>Formulate Equation:</strong> <code>180000/x - 180000/(x+2) = 3000</code></li>
+    <li><strong>Simplify:</strong> Divide through by 3000 &rarr; <code>60/x - 60/(x+2) = 1</code></li>
+    <li><strong>Quadratic form:</strong> <code>x² + 2x - 120 = 0</code></li>
+    <li><strong>Factorize:</strong> <code>(x + 12)(x - 10) = 0</code></li>
+    <li><strong>Final Result:</strong> <code>x = 10 bags</code> (Original cost = <strong>₦18,000 per bag</strong>)</li>
+  </ol>
+</div>$html$,
+  $html$<div class="bouk-page">
+  <h2 class="text-xl font-bold text-amber-600 mb-2">NECO 2023 / 2026: Simultaneous Non-Linear Equations</h2>
+  <div class="p-4 bg-slate-50 dark:bg-zinc-800 rounded-xl border border-slate-200 dark:border-zinc-700 mb-4">
+    <h3 class="font-bold text-base mb-1">Problem 2: Linear and Quadratic Systems</h3>
+    <p class="text-sm">Solve simultaneously for x and y:</p>
+    <div class="font-mono text-sm mt-2 pl-3 border-l-2 border-amber-500">
+      (1) x + y = 5<br/>
+      (2) x² + y² = 13
+    </div>
+  </div>
+  <h4 class="font-bold text-sm mb-2">Detailed Working:</h4>
+  <p class="text-sm mb-2">From equation (1), express y: <code>y = 5 - x</code>.</p>
+  <p class="text-sm mb-2">Substitute into (2): <code>x² + (5 - x)² = 13</code> &rarr; <code>2x² - 10x + 12 = 0</code> &rarr; <code>x² - 5x + 6 = 0</code>.</p>
+  <p class="text-sm">Factoring gives <code>(x - 2)(x - 3) = 0</code>. Solutions: <strong>(x=2, y=3)</strong> and <strong>(x=3, y=2)</strong>.</p>
+</div>$html$,
+  $html$<div class="bouk-page">
+  <h2 class="text-xl font-bold text-amber-600 mb-2">WAEC Trigonometry: 3-Figure Bearings & Distances</h2>
+  <div class="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800 mb-4">
+    <p class="text-sm">A ship sails from port P on a bearing of <strong>060°</strong> for 80 km to Q, then on <strong>150°</strong> for 120 km to R. Find distance |PR|.</p>
+  </div>
+  <h4 class="font-bold text-sm mb-2">Workings:</h4>
+  <p class="text-sm mb-2">Interior angle &ang;PQR = (060° + 180°) - 150° = 90°.</p>
+  <p class="text-sm">Using Pythagoras theorem: <code>|PR|² = 80² + 120² = 6400 + 14400 = 20800</code> &rarr; <code>|PR| &approx; 144.22 km</code>.</p>
+</div>$html$,
+  $html$<div class="bouk-page">
+  <h2 class="text-xl font-bold text-amber-600 mb-2">Calculus: Differentiation & Rates of Change</h2>
+  <div class="p-4 bg-slate-50 dark:bg-zinc-800 rounded-xl border border-slate-200 dark:border-zinc-700 mb-4">
+    <p class="text-sm">Find the stationary points of the curve <code>y = 2x³ - 9x² + 12x - 5</code> and determine their nature.</p>
+  </div>
+  <p class="text-sm mb-2">Derivative: <code>dy/dx = 6x² - 18x + 12 = 0</code> &rarr; <code>x² - 3x + 2 = 0</code> &rarr; <code>x = 1</code> or <code>x = 2</code>.</p>
+  <p class="text-sm">Second derivative <code>d²y/dx² = 12x - 18</code>: At x=1 (max), at x=2 (min).</p>
+</div>$html$
 ),
 (
   'a0000002-0000-0000-0000-000000000002',
-  'Complete African & Global Geography Knowledge Bouk',
+  'Geography of Nigeria & West African Physical Terrain',
   'Dr. A. O. Balogun & African Cartography Society',
   'geo',
   'Geography & Earth Sciences',
-  'Secondary, University & Reference',
+  'Senior Secondary / WAEC / Tertiary',
   'from-emerald-700 via-teal-800 to-cyan-900',
-  'Comprehensive treatise on African and global physical landforms, the West African Monsoon, River Niger basin, and GIS techniques.',
-  4.88,
-  31900,
-  ARRAY['Geography', 'Africa', 'Climatology', 'River Niger', 'Inselbergs', 'GIS'],
-  'Physical and human geography dataset for Africa and the world.',
-  $json$[
-    {
-      "id": "geo-ch1-climate",
-      "chapterNumber": 1,
-      "title": "Climatology: The West African Monsoon & ITD",
-      "summary": "Inter-Tropical Discontinuity air masses and vegetation zones.",
-      "pages": [
-        {
-          "pageNumber": 1,
-          "title": "The Mechanics of West African Seasons",
-          "content": "### Inter-Tropical Discontinuity (ITD)\n\n1. Tropical Maritime (mT): South Atlantic moist monsoon winds\n2. Tropical Continental (cT): Sahara dry Harmattan winds\n3. Annual migration of the ITD controls the wet and dry rainfall cycles."
-        }
-      ]
-    }
-  ]$json$::jsonb
+  'Complete geographical analysis of Nigeria and West Africa with HTML formatted charts, drainage maps, climate belts, and minerals.',
+  4.90,
+  $html$<div class="bouk-page">
+  <h2 class="text-xl font-bold text-emerald-600 mb-2">Major Drainage Systems & River Niger Basin</h2>
+  <div class="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 mb-4">
+    <p class="text-sm">Nigeria is drained by two primary river systems that confluence at Lokoja to form a Y-shaped discharge into the Atlantic Ocean.</p>
+  </div>
+  <ul class="list-disc list-inside space-y-2 text-sm">
+    <li><strong>River Niger (4,180 km):</strong> Enters northwest through Kebbi State, flows through Kainji/Jebba dams to Lokoja.</li>
+    <li><strong>River Benue (1,400 km):</strong> Originates in Cameroon Adamawa Highlands, flowing westward to Lokoja.</li>
+    <li><strong>The Niger Delta:</strong> Expansive 70,000 km² wetland mangrove and petroleum-rich basin.</li>
+  </ul>
+</div>$html$,
+  $html$<div class="bouk-page">
+  <h2 class="text-xl font-bold text-emerald-600 mb-2">Climatology & The West African Monsoon</h2>
+  <div class="p-4 bg-slate-50 dark:bg-zinc-800 rounded-xl border border-slate-200 dark:border-zinc-700 mb-4">
+    <h3 class="font-bold text-base mb-1">Inter-Tropical Discontinuity (ITD)</h3>
+    <p class="text-sm">West African weather is governed by the oscillation of two contrasting air masses:</p>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+    <div class="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-lg border border-blue-200 dark:border-blue-800">
+      <h4 class="font-bold text-blue-600">Tropical Maritime (mT)</h4>
+      <p class="text-xs mt-1">Originates from South Atlantic. Moist, rain-bearing southwest trade winds.</p>
+    </div>
+    <div class="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-200 dark:border-amber-800">
+      <h4 class="font-bold text-amber-600">Tropical Continental (cT)</h4>
+      <p class="text-xs mt-1">Originates over Sahara Desert. Dry, dusty northeast Harmattan winds.</p>
+    </div>
+  </div>
+</div>$html$,
+  $html$<div class="bouk-page">
+  <h2 class="text-xl font-bold text-emerald-600 mb-2">Vegetation Belts & Agricultural Zones</h2>
+  <div class="space-y-3 text-sm">
+    <p>From the coast to the northern border, Nigeria transitions across distinct vegetation belts:</p>
+    <div class="p-2 border-l-4 border-emerald-600 bg-slate-50 dark:bg-zinc-800 pl-3">
+      <strong>1. Mangrove & Freshwater Swamps:</strong> Coastal belt, high rainfall (>2500mm), fishing and timber.
+    </div>
+    <div class="p-2 border-l-4 border-green-600 bg-slate-50 dark:bg-zinc-800 pl-3">
+      <strong>2. Tropical Rainforest:</strong> Cocoa, oil palm, rubber, timber (Ondo, Edo, Cross River).
+    </div>
+    <div class="p-2 border-l-4 border-lime-600 bg-slate-50 dark:bg-zinc-800 pl-3">
+      <strong>3. Guinea & Sudan Savannah:</strong> Grains (millet, sorghum, maize), groundnuts, cattle rearing.
+    </div>
+  </div>
+</div>$html$,
+  $html$<div class="bouk-page">
+  <h2 class="text-xl font-bold text-emerald-600 mb-2">Mineral Resources & Economic Geology</h2>
+  <table class="w-full text-xs text-left border-collapse border border-slate-300 dark:border-zinc-700 mt-2">
+    <thead class="bg-slate-100 dark:bg-zinc-800">
+      <tr>
+        <th class="p-2 border border-slate-300 dark:border-zinc-700">Mineral</th>
+        <th class="p-2 border border-slate-300 dark:border-zinc-700">Major Locations</th>
+        <th class="p-2 border border-slate-300 dark:border-zinc-700">Economic Use</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2 border border-slate-300 dark:border-zinc-700 font-semibold">Crude Oil & Gas</td>
+        <td class="p-2 border border-slate-300 dark:border-zinc-700">Niger Delta, Offshore</td>
+        <td class="p-2 border border-slate-300 dark:border-zinc-700">Primary export revenue</td>
+      </tr>
+      <tr>
+        <td class="p-2 border border-slate-300 dark:border-zinc-700 font-semibold">Solid Minerals / Lithium</td>
+        <td class="p-2 border border-slate-300 dark:border-zinc-700">Nasarawa, Kaduna, Kwara</td>
+        <td class="p-2 border border-slate-300 dark:border-zinc-700">EV batteries & energy</td>
+      </tr>
+      <tr>
+        <td class="p-2 border border-slate-300 dark:border-zinc-700 font-semibold">Tin & Columbite</td>
+        <td class="p-2 border border-slate-300 dark:border-zinc-700">Jos Plateau</td>
+        <td class="p-2 border border-slate-300 dark:border-zinc-700">Alloys & metallurgy</td>
+      </tr>
+    </tbody>
+  </table>
+</div>$html$
 )
 ON CONFLICT (id) DO NOTHING;

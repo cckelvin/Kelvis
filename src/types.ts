@@ -54,21 +54,23 @@ export interface AppSettings {
 
 export type BoukClassification = "edu" | "tech" | "business" | "science" | "geo" | "humanities" | "general";
 
-export interface BoukPage {
-  id?: string;
-  pageNumber: number;
-  title: string;
-  content: string; // Markdown supported
-  mediaUrl?: string;
-  attachments?: { name: string; type: string; url?: string }[];
+export interface QuizOption {
+  id: string; // "A" | "B" | "C" | "D"
+  text: string;
 }
 
-export interface BoukChapter {
-  id: string;
-  chapterNumber: number;
-  title: string;
-  summary: string;
-  pages: BoukPage[];
+export interface QuizQuestion {
+  id: number;
+  question: string;
+  options: QuizOption[];
+  correctOptionId?: string;
+  explanation?: string;
+}
+
+export interface QuizPayload {
+  title?: string;
+  topic?: string;
+  questions: QuizQuestion[];
 }
 
 export interface Bouk {
@@ -82,10 +84,10 @@ export interface Bouk {
   coverGradient?: string;
   description: string;
   rating?: number;
-  readersCount?: number;
-  chapters: BoukChapter[];
-  tags: string[];
-  aiGuidance?: string;
+  // Pages 1 to 100 HTML content
+  pages?: Record<number, string>;
   createdAt: string;
   updatedAt: string;
+  // Allow dynamic access to page_1 through page_100
+  [key: string]: any;
 }

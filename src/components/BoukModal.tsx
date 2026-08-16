@@ -14,13 +14,10 @@ import {
   TrendingUp,
   Layers,
   Star,
-  Users,
-  FileText,
   Trash2,
   RefreshCw,
-  ExternalLink,
   ChevronRight,
-  HelpCircle
+  FileCode
 } from "lucide-react";
 import { Bouk, BoukClassification } from "../types";
 import { DEFAULT_BOUKS } from "../data/defaultBouks";
@@ -40,7 +37,7 @@ export const BoukModal: React.FC<BoukModalProps> = ({
   onAskKelvis,
 }) => {
   const [bouks, setBouks] = useState<Bouk[]>(() => {
-    const saved = localStorage.getItem("kelvis_bouks");
+    const saved = localStorage.getItem("kelvis_bouks_v2");
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -58,24 +55,26 @@ export const BoukModal: React.FC<BoukModalProps> = ({
   const [copiedSql, setCopiedSql] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // New Book Form State
+  // New Book Form State (1 to 100 HTML Pages)
   const [newTitle, setNewTitle] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
   const [newClassification, setNewClassification] = useState<BoukClassification>("edu");
   const [newCategoryName, setNewCategoryName] = useState("Education & Exam Prep");
   const [newGradeLevel, setNewGradeLevel] = useState("WAEC / NECO / High School");
   const [newDescription, setNewDescription] = useState("");
-  const [newTags, setNewTags] = useState("");
-  const [newAiGuidance, setNewAiGuidance] = useState("");
-  const [newChapterTitle, setNewChapterTitle] = useState("Chapter 1: Foundations & Past Questions");
-  const [newPageTitle, setNewPageTitle] = useState("Page 1: Overview & Questions");
-  const [newPageContent, setNewPageContent] = useState(
-    "### Overview\n\nWrite your open access knowledge content, past questions, formulas, or study notes here in markdown format."
-  );
+  const [activePageEditNum, setActivePageEditNum] = useState<number>(1);
+  const [pagesHtmlState, setPagesHtmlState] = useState<Record<number, string>>({
+    1: `<div class="space-y-4">
+  <h2 class="text-xl font-bold text-amber-600">Chapter 1: Overview & Fundamental Concepts</h2>
+  <div class="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800 text-sm">
+    <p>Welcome to this open-access book. Use native HTML tags such as headings, tables, grids, and lists to design rich educational pages.</p>
+  </div>
+</div>`,
+  });
 
   // Save to LocalStorage whenever bouks change
   useEffect(() => {
-    localStorage.setItem("kelvis_bouks", JSON.stringify(bouks));
+    localStorage.setItem("kelvis_bouks_v2", JSON.stringify(bouks));
   }, [bouks]);
 
   // Load from Supabase on mount
@@ -90,7 +89,6 @@ export const BoukModal: React.FC<BoukModalProps> = ({
     try {
       const dbBouks = await fetchSupabaseBouks();
       if (dbBouks && dbBouks.length > 0) {
-        // Merge Supabase books with default ones
         const mergedMap = new Map<string, Bouk>();
         DEFAULT_BOUKS.forEach((b) => mergedMap.set(b.id, b));
         dbBouks.forEach((b) => mergedMap.set(b.id, b));
@@ -111,15 +109,7 @@ export const BoukModal: React.FC<BoukModalProps> = ({
       searchQuery === "" ||
       b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      b.chapters.some((c) =>
-        c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.pages.some((p) =>
-          p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.content.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      );
+      b.description.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesClassification =
       selectedClassification === "all" || b.classification === selectedClassification;
@@ -156,27 +146,17 @@ export const BoukModal: React.FC<BoukModalProps> = ({
       coverGradient: randomGradient,
       description: newDescription.trim() || "An open access knowledge book.",
       rating: 5.0,
-      readersCount: 1,
-      tags: newTags.split(",").map((t) => t.trim()).filter(Boolean),
-      aiGuidance: newAiGuidance.trim() || undefined,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      chapters: [
-        {
-          id: `chap-${Date.now()}`,
-          chapterNumber: 1,
-          title: newChapterTitle.trim() || "Chapter 1",
-          summary: "First chapter of this Bouk.",
-          pages: [
-            {
-              pageNumber: 1,
-              title: newPageTitle.trim() || "Page 1",
-              content: newPageContent.trim(),
-            },
-          ],
-        },
-      ],
     };
+
+    // Assign all edited page_1 to page_100 HTML strings
+    Object.entries(pagesHtmlState).forEach(([pageNumStr, htmlContent]) => {
+      const pNum = Number(pageNumStr);
+      if (pNum >= 1 && pNum <= 100 && htmlContent.trim()) {
+        newBouk[`page_${pNum}`] = htmlContent.trim();
+      }
+    });
 
     const updated = [newBouk, ...bouks];
     setBouks(updated);
@@ -189,8 +169,12 @@ export const BoukModal: React.FC<BoukModalProps> = ({
     setNewTitle("");
     setNewAuthor("");
     setNewDescription("");
-    setNewTags("");
-    setNewAiGuidance("");
+    setPagesHtmlState({
+      1: `<div class="space-y-4">
+  <h2 class="text-xl font-bold text-amber-600">Chapter 1: Overview</h2>
+  <p>Start writing your HTML content for Page 1.</p>
+</div>`,
+    });
   };
 
   const handleDeleteBouk = async (id: string, e: React.MouseEvent) => {
@@ -237,11 +221,11 @@ export const BoukModal: React.FC<BoukModalProps> = ({
                   .Bouk
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                  Open Access Books & AI Guidance
+                  Open Access Ebooks (100 HTML Pages)
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-zinc-400 hidden sm:block">
-                Open knowledge base for users & AI guidance (WAEC/NECO 2000–2026, Geography, Tech, Business)
+                Open-access books with individual HTML page columns (1 to 100)
               </p>
             </div>
           </div>
@@ -302,34 +286,24 @@ export const BoukModal: React.FC<BoukModalProps> = ({
                 <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
+                  placeholder="Search books by title, author, topics..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search Bouks (e.g. WAEC 2024 Math, River Niger, Algorithms, Inflation)..."
-                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700 text-xs focus:outline-hidden focus:ring-2 focus:ring-amber-500 text-slate-900 dark:text-zinc-100 placeholder-slate-400"
+                  className="w-full pl-9.5 pr-4 py-2.5 bg-slate-100 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700/80 rounded-2xl text-xs sm:text-sm text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-hidden focus:border-amber-500 transition-all"
                 />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 text-xs"
-                  >
-                    Clear
-                  </button>
-                )}
               </div>
 
-              {/* Sync Button */}
               <button
                 onClick={handleSyncSupabase}
                 disabled={isSyncing}
-                className="flex items-center space-x-1.5 px-3 py-2 rounded-2xl border border-slate-300 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-colors shrink-0 cursor-pointer"
-                title="Sync latest books from Supabase"
+                className="flex items-center space-x-1.5 px-3 py-2.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-2xl text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 transition cursor-pointer"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin text-amber-500" : ""}`} />
-                <span>{isSyncing ? "Syncing..." : "Sync DB"}</span>
+                <span>{isSyncing ? "Syncing..." : "Sync Database"}</span>
               </button>
             </div>
 
-            {/* Classification Filter Pills */}
+            {/* Classification Filters */}
             <div className="flex items-center space-x-2 overflow-x-auto pb-1 shrink-0 no-scrollbar">
               {classificationsList.map((item) => {
                 const isSelected = selectedClassification === item.id;
@@ -337,13 +311,13 @@ export const BoukModal: React.FC<BoukModalProps> = ({
                   <button
                     key={item.id}
                     onClick={() => setSelectedClassification(item.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center space-x-1.5 ${
                       isSelected
-                        ? "bg-amber-500 text-white shadow-xs"
-                        : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700"
+                        ? "bg-amber-600 text-white shadow-xs"
+                        : "bg-slate-100 dark:bg-zinc-800/60 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-800"
                     }`}
                   >
-                    {item.label}
+                    <span>{item.label}</span>
                   </button>
                 );
               })}
@@ -352,81 +326,88 @@ export const BoukModal: React.FC<BoukModalProps> = ({
             {/* Books Grid */}
             <div className="flex-1 overflow-y-auto pr-1">
               {filteredBouks.length === 0 ? (
-                <div className="h-64 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-3xl">
-                  <BookOpen className="w-12 h-12 text-slate-300 dark:text-zinc-700 mb-3" />
-                  <div className="font-bold text-slate-700 dark:text-zinc-300 text-sm mb-1">
-                    No Bouks match your search
+                <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                  <div className="p-4 rounded-3xl bg-slate-100 dark:bg-zinc-800 text-slate-400 mb-3">
+                    <BookOpen className="w-8 h-8" />
                   </div>
-                  <div className="text-xs text-slate-400 max-w-sm">
-                    Try searching for different keywords or click <strong>Publish Bouk</strong> to author a new open access book.
-                  </div>
+                  <h3 className="text-base font-bold text-slate-800 dark:text-zinc-200">No .Bouks Found</h3>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-sm">
+                    No books matched your filter criteria. Try searching with different keywords or create a new Bouk.
+                  </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
                   {filteredBouks.map((bouk) => {
-                    const totalPages = bouk.chapters.reduce(
-                      (acc, chap) => acc + (chap.pages?.length || 0),
-                      0
-                    );
+                    // Count available pages
+                    let pageCount = 0;
+                    for (let i = 1; i <= 100; i++) {
+                      if (bouk[`page_${i}`] && String(bouk[`page_${i}`]).trim() !== "") {
+                        pageCount++;
+                      }
+                    }
 
                     return (
                       <div
                         key={bouk.id}
                         onClick={() => setReadingBouk(bouk)}
-                        className="group p-4 rounded-3xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 hover:border-amber-500 dark:hover:border-amber-500 transition-all shadow-xs hover:shadow-md cursor-pointer flex flex-col justify-between relative overflow-hidden"
+                        className="group bg-slate-50 dark:bg-zinc-800/50 hover:bg-white dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-700/60 hover:border-amber-500/50 rounded-3xl p-4 flex flex-col justify-between shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer relative overflow-hidden"
                       >
-                        {/* Book Top Ribbon / Category */}
-                        <div className="flex items-start justify-between gap-2 mb-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                              {bouk.classification.toUpperCase()}
+                        {/* Top Gradient Banner */}
+                        <div
+                          className={`h-24 rounded-2xl bg-gradient-to-r ${bouk.coverGradient || "from-amber-600 via-orange-600 to-red-700"} p-3 flex flex-col justify-between text-white shadow-inner mb-3 relative overflow-hidden`}
+                        >
+                          <div className="flex items-center justify-between z-10">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-black/30 backdrop-blur-xs">
+                              {bouk.categoryName}
                             </span>
-                            <span className="text-[11px] font-medium text-slate-500 dark:text-zinc-400 truncate">
+                            <div className="flex items-center space-x-1 text-amber-300 text-xs font-bold bg-black/30 px-1.5 py-0.5 rounded-md">
+                              <Star className="w-3 h-3 fill-amber-300" />
+                              <span>{bouk.rating || 5.0}</span>
+                            </div>
+                          </div>
+
+                          <div className="z-10 flex items-center justify-between">
+                            <span className="text-[11px] font-medium text-white/90 truncate max-w-[180px]">
                               {bouk.gradeLevel || "Open Access"}
+                            </span>
+                            <span className="text-[11px] font-mono font-bold bg-white/20 px-2 py-0.5 rounded-md">
+                              {pageCount > 0 ? `${pageCount} Pages` : "100 Pages"}
                             </span>
                           </div>
 
-                          <div className="flex items-center space-x-1 text-amber-500 text-xs font-bold">
-                            <Star className="w-3.5 h-3.5 fill-amber-500" />
-                            <span>{bouk.rating || 5.0}</span>
+                          {/* Decorative Background Pattern */}
+                          <div className="absolute -right-4 -bottom-4 opacity-10 text-white pointer-events-none">
+                            <BookOpen className="w-24 h-24" />
                           </div>
                         </div>
 
                         {/* Title & Author */}
-                        <div className="mb-3">
-                          <h3 className="font-bold text-slate-900 dark:text-zinc-100 text-sm leading-snug group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors line-clamp-2">
+                        <div className="space-y-1.5 mb-3">
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-zinc-100 line-clamp-2 group-hover:text-amber-600 transition-colors">
                             {bouk.title}
                           </h3>
-                          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 font-medium">
+                          <p className="text-xs text-slate-500 dark:text-zinc-400 line-clamp-1">
                             By {bouk.author}
+                          </p>
+                          <p className="text-xs text-slate-600 dark:text-zinc-300 line-clamp-2 pt-1">
+                            {bouk.description}
                           </p>
                         </div>
 
-                        {/* Description */}
-                        <p className="text-xs text-slate-600 dark:text-zinc-300 line-clamp-2 mb-4 leading-relaxed">
-                          {bouk.description}
-                        </p>
-
-                        {/* Stats & Actions Footer */}
-                        <div className="pt-3 border-t border-slate-100 dark:border-zinc-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400">
-                          <div className="flex items-center space-x-3 text-[11px]">
-                            <span className="flex items-center space-x-1">
-                              <Layers className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{bouk.chapters.length} Chaps</span>
-                            </span>
-                            <span className="flex items-center space-x-1">
-                              <FileText className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{totalPages} Pages</span>
-                            </span>
+                        {/* Footer Info */}
+                        <div className="pt-3 border-t border-slate-200/80 dark:border-zinc-700/60 flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400">
+                          <div className="flex items-center space-x-1 text-amber-600 dark:text-amber-400 font-semibold group-hover:translate-x-0.5 transition-transform">
+                            <span>Open HTML Book</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
                           </div>
 
-                          <div className="flex items-center space-x-1.5">
-                            {/* Read Book Button */}
-                            <span className="px-3 py-1 rounded-xl bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-semibold text-xs group-hover:bg-amber-500 dark:group-hover:bg-amber-500 dark:group-hover:text-white transition-colors flex items-center space-x-1">
-                              <span>Read Bouk</span>
-                              <ChevronRight className="w-3.5 h-3.5" />
-                            </span>
-                          </div>
+                          <button
+                            onClick={(e) => handleDeleteBouk(bouk.id, e)}
+                            className="p-1 rounded-lg hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 transition"
+                            title="Delete Book"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     );
@@ -437,150 +418,142 @@ export const BoukModal: React.FC<BoukModalProps> = ({
           </div>
         )}
 
-        {/* Create Bouk Tab */}
+        {/* Create / Publish Bouk Tab */}
         {activeTab === "create" && (
-          <form
-            onSubmit={handleCreateBouk}
-            className="flex-1 overflow-y-auto p-6 space-y-4"
-          >
-            <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl text-xs text-amber-900 dark:text-amber-200 flex items-start space-x-3">
-              <Sparkles className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-              <div>
-                <strong className="font-bold">Authoring Open Access .Bouk:</strong>
-                <p className="mt-0.5 opacity-90">
-                  Bouks are accessible to everyone and provide structured context to guide Kelvis AI in specialized fields (such as WAEC/NECO 2000–2026 past questions, Nigerian Geography, Software Engineering, Economics).
-                </p>
-              </div>
+          <form onSubmit={handleCreateBouk} className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-zinc-100">Publish a New .Bouk</h2>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                Author open-access books with up to 100 HTML pages stored directly as column data.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                  Bouk Title *
-                </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">Book Title *</label>
                 <input
                   type="text"
                   required
+                  placeholder="e.g. WAEC 2000–2026 Biology Theory & Practical Prep"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. WAEC Biology 2000-2026 Past Questions & Answers"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-2xl text-xs text-slate-900 dark:text-zinc-100 focus:outline-hidden focus:border-amber-500"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                  Author / Organization *
-                </label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">Author / Publisher *</label>
                 <input
                   type="text"
                   required
+                  placeholder="e.g. Science Teachers Association of Nigeria"
                   value={newAuthor}
                   onChange={(e) => setNewAuthor(e.target.value)}
-                  placeholder="e.g. WAEC Council & Science Teachers"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-2xl text-xs text-slate-900 dark:text-zinc-100 focus:outline-hidden focus:border-amber-500"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                  Classification
-                </label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">Classification</label>
                 <select
                   value={newClassification}
                   onChange={(e) => setNewClassification(e.target.value as BoukClassification)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-2xl text-xs text-slate-900 dark:text-zinc-100 focus:outline-hidden focus:border-amber-500"
                 >
-                  <option value="edu">Education / Exam Prep (edu)</option>
-                  <option value="geo">Geography & Earth (geo)</option>
-                  <option value="tech">Technology & Software (tech)</option>
-                  <option value="business">Business & Economics (business)</option>
-                  <option value="science">Sciences & Mathematics (science)</option>
-                  <option value="humanities">Humanities & History (humanities)</option>
-                  <option value="general">General Knowledge (general)</option>
+                  <option value="edu">🎓 Education & WAEC/NECO</option>
+                  <option value="geo">🌍 Geography & Earth Sciences</option>
+                  <option value="tech">💻 Tech & Computer Science</option>
+                  <option value="business">📈 Business & Economics</option>
+                  <option value="science">🔬 Pure & Applied Sciences</option>
+                  <option value="humanities">🏛️ Humanities & History</option>
+                  <option value="general">📚 General Knowledge</option>
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                  Grade / Target Level
-                </label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">Grade / Target Level</label>
                 <input
                   type="text"
+                  placeholder="e.g. Senior Secondary / WASSCE / SSCE / UTME"
                   value={newGradeLevel}
                   onChange={(e) => setNewGradeLevel(e.target.value)}
-                  placeholder="e.g. WAEC / NECO / Senior Secondary"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-2xl text-xs text-slate-900 dark:text-zinc-100 focus:outline-hidden focus:border-amber-500"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                Description & Overview
-              </label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">Short Description</label>
               <textarea
                 rows={2}
+                placeholder="Describe what this book covers, key curriculum topics, past question years, etc."
                 value={newDescription}
                 onChange={(e) => setNewDescription(e.target.value)}
-                placeholder="Brief summary of what this book covers..."
-                className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-2xl text-xs text-slate-900 dark:text-zinc-100 focus:outline-hidden focus:border-amber-500"
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                AI Guidance Prompt (Optional instructions for Kelvis AI)
-              </label>
-              <input
-                type="text"
-                value={newAiGuidance}
-                onChange={(e) => setNewAiGuidance(e.target.value)}
-                placeholder="e.g. Use this book to provide step-by-step WAEC marking scheme answers and diagrams..."
-                className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-              />
-            </div>
+            {/* 100 HTML Pages Section */}
+            <div className="p-4 rounded-3xl bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-zinc-700 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center space-x-1.5">
+                    <FileCode className="w-4 h-4 text-amber-600" />
+                    <span>Author HTML Pages (1 to 100)</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400">
+                    Each page corresponds to a column in your Supabase table (<code>page_1</code> to <code>page_100</code>).
+                  </p>
+                </div>
 
-            <div className="pt-3 border-t border-slate-200 dark:border-zinc-800">
-              <h4 className="font-bold text-xs text-slate-800 dark:text-zinc-200 mb-2">
-                Initial Chapter & Page 1 Content
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                <input
-                  type="text"
-                  value={newChapterTitle}
-                  onChange={(e) => setNewChapterTitle(e.target.value)}
-                  placeholder="Chapter Title"
-                  className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-xs"
-                />
-                <input
-                  type="text"
-                  value={newPageTitle}
-                  onChange={(e) => setNewPageTitle(e.target.value)}
-                  placeholder="Page 1 Title"
-                  className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-xs"
+                {/* Page Selector Pill */}
+                <div className="flex items-center space-x-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">Editing Page:</label>
+                  <select
+                    value={activePageEditNum}
+                    onChange={(e) => setActivePageEditNum(Number(e.target.value))}
+                    className="px-2.5 py-1 bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-xl text-xs font-bold text-amber-600 focus:outline-hidden"
+                  >
+                    {Array.from({ length: 100 }, (_, i) => i + 1).map((p) => (
+                      <option key={p} value={p}>
+                        Page {p} {pagesHtmlState[p]?.trim() ? "•" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 flex items-center justify-between">
+                  <span>Page {activePageEditNum} HTML Content</span>
+                  <span className="text-[11px] font-normal text-slate-500">Supports standard HTML tags, CSS classes, tables & styling</span>
+                </label>
+                <textarea
+                  rows={8}
+                  value={pagesHtmlState[activePageEditNum] || ""}
+                  onChange={(e) =>
+                    setPagesHtmlState({
+                      ...pagesHtmlState,
+                      [activePageEditNum]: e.target.value,
+                    })
+                  }
+                  placeholder={`<div class="space-y-4">\n  <h2 class="text-xl font-bold text-amber-600">Page ${activePageEditNum} Title</h2>\n  <p>Write your educational or past question content here in HTML format.</p>\n</div>`}
+                  className="w-full font-mono text-xs px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 rounded-2xl text-slate-900 dark:text-zinc-100 focus:outline-hidden focus:border-amber-500"
                 />
               </div>
-              <textarea
-                rows={6}
-                value={newPageContent}
-                onChange={(e) => setNewPageContent(e.target.value)}
-                placeholder="Markdown content with questions, answers, formulas, or study guides..."
-                className="w-full font-mono px-3 py-2 rounded-xl bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-              />
             </div>
 
-            <div className="pt-4 flex justify-end space-x-2">
+            <div className="flex items-center justify-end space-x-3 pt-2">
               <button
                 type="button"
                 onClick={() => setActiveTab("library")}
-                className="px-4 py-2 rounded-xl border border-slate-300 dark:border-zinc-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                className="px-4 py-2.5 rounded-2xl text-xs font-semibold text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs font-bold shadow-xs hover:opacity-95 transition-opacity"
+                className="px-6 py-2.5 rounded-2xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 transition cursor-pointer"
               >
                 Publish .Bouk
               </button>
@@ -591,35 +564,28 @@ export const BoukModal: React.FC<BoukModalProps> = ({
         {/* Supabase SQL Tab */}
         {activeTab === "sql" && (
           <div className="flex-1 flex flex-col overflow-hidden p-6 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between shrink-0">
               <div>
-                <h3 className="font-bold text-slate-900 dark:text-zinc-100 text-sm">
-                  Supabase Single SQL Script for .Bouk Storage
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-zinc-400">
-                  Run this single SQL code in your Supabase SQL Editor to create the <code>bouks</code> table with RLS and sample data.
+                <h2 className="text-base font-bold text-slate-900 dark:text-zinc-100 flex items-center space-x-2">
+                  <Database className="w-5 h-5 text-emerald-500" />
+                  <span>Supabase SQL Script (100 HTML Pages as Columns)</span>
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                  Single SQL code defining the <code>bouks</code> table with <code>page_1</code> to <code>page_100</code> HTML columns, RLS policies, and seeded past examination bouks.
                 </p>
               </div>
+
               <button
                 onClick={handleCopySql}
-                className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-bold flex items-center space-x-1.5 shadow-xs hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-emerald-600/20 transition cursor-pointer shrink-0"
               >
-                {copiedSql ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400 dark:text-emerald-600" />
-                    <span>Copied SQL!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copy Single SQL Code</span>
-                  </>
-                )}
+                {copiedSql ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                <span>{copiedSql ? "Copied SQL!" : "Copy SQL Script"}</span>
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto bg-slate-950 text-slate-200 p-4 rounded-2xl font-mono text-xs leading-relaxed border border-slate-800 shadow-inner">
-              <pre className="whitespace-pre-wrap break-words">{BOUK_SUPABASE_SQL}</pre>
+            <div className="flex-1 bg-slate-900 text-slate-100 rounded-3xl p-4 overflow-y-auto font-mono text-xs border border-slate-800 shadow-inner">
+              <pre className="whitespace-pre-wrap">{BOUK_SUPABASE_SQL}</pre>
             </div>
           </div>
         )}
