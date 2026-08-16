@@ -51,3 +51,41 @@ export interface AppSettings {
   customGoogleCx?: string;
   customGroqApiKey?: string;
 }
+
+export type BoukClassification = "edu" | "tech" | "business" | "science" | "geo" | "humanities" | "general";
+
+export interface BoukPage {
+  id?: string;
+  pageNumber: number;
+  title: string;
+  content: string; // Markdown supported
+  mediaUrl?: string;
+  attachments?: { name: string; type: string; url?: string }[];
+}
+
+export interface BoukChapter {
+  id: string;
+  chapterNumber: number;
+  title: string;
+  summary: string;
+  pages: BoukPage[];
+}
+
+export interface Bouk {
+  id: string;
+  title: string;
+  author: string;
+  classification: BoukClassification;
+  categoryName: string;
+  gradeLevel?: string;
+  coverImage?: string;
+  coverGradient?: string;
+  description: string;
+  rating?: number;
+  readersCount?: number;
+  chapters: BoukChapter[];
+  tags: string[];
+  aiGuidance?: string;
+  createdAt: string;
+  updatedAt: string;
+}

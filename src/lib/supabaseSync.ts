@@ -230,3 +230,113 @@ export async function uploadSupabaseFile(file: File): Promise<string | null> {
   }
 }
 
+/**
+ * Fetch all open access Bouks from Supabase
+ */
+export async function fetchSupabaseBouks(): Promise<any[] | null> {
+  const supabase = getSupabase();
+  if (!supabase || !isSupabaseConfigured) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from("bouks")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.warn("Supabase fetchBouks notice:", error);
+      return null;
+    }
+
+    if (!data) return [];
+
+    return data.map((b: any) => ({
+      id: b.id,
+      title: b.title,
+      author: b.author,
+      classification: b.classification,
+      categoryName: b.category_name || "General",
+      gradeLevel: b.grade_level || "General",
+      coverImage: b.cover_image || undefined,
+      coverGradient: b.cover_gradient || "from-blue-600 via-indigo-600 to-purple-800",
+      description: b.description,
+      rating: Number(b.rating) || 5.0,
+      readersCount: Number(b.readers_count) || 1,
+      chapters: Array.isArray(b.chapters) ? b.chapters : [],
+      tags: Array.isArray(b.tags) ? b.tags : [],
+      aiGuidance: b.ai_guidance || undefined,
+      createdAt: b.created_at,
+      updatedAt: b.updated_at,
+    }));
+  } catch (err) {
+    console.warn("Could not fetch bouks from Supabase:", err);
+    return null;
+  }
+}
+
+/**
+ * Save or publish a Bouk to Supabase
+ */
+export async function saveSupabaseBouk(bouk: any): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase || !isSupabaseConfigured) return false;
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    const validId = toValidUUID(bouk.id);
+
+    const payload = {
+      id: validId,
+      user_id: user?.id || null,
+      title: bouk.title,
+      author: bouk.author,
+      classification: bouk.classification,
+      category_name: bouk.categoryName,
+      grade_level: bouk.gradeLevel,
+      cover_image: bouk.coverImage || null,
+      cover_gradient: bouk.coverGradient || "from-blue-600 via-indigo-600 to-purple-800",
+      description: bouk.description,
+      rating: bouk.rating || 5.0,
+      readers_count: (bouk.readersCount || 1) + 1,
+      chapters: bouk.chapters || [],
+      tags: bouk.tags || [],
+      ai_guidance: bouk.aiGuidance || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("bouks")
+      .upsert(payload, { onConflict: "id" });
+
+    if (error) {
+      console.warn("Supabase saveBouk error:", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("Supabase saveBouk failed:", err);
+    return false;
+  }
+}
+
+/**
+ * Delete a Bouk from Supabase
+ */
+export async function deleteSupabaseBouk(boukId: string): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase || !isSupabaseConfigured) return false;
+
+  try {
+    const validId = toValidUUID(boukId);
+    const { error } = await supabase
+      .from("bouks")
+      .delete()
+      .eq("id", validId);
+
+    return !error;
+  } catch (err) {
+    console.warn("Supabase deleteBouk failed:", err);
+    return false;
+  }
+}
+

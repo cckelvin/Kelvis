@@ -11,6 +11,7 @@ import {
   Sparkles,
   User,
   Activity,
+  BookOpen,
 } from "lucide-react";
 import { ChatSession } from "../types";
 
@@ -27,6 +28,7 @@ interface SidebarProps {
   onOpenAuth: () => void;
   userEmail?: string | null;
   onOpenBinanceMarket?: () => void;
+  onOpenBouk?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -42,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAuth,
   userEmail,
   onOpenBinanceMarket,
+  onOpenBouk,
 }) => {
   if (!isOpen) return null;
 
@@ -57,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside className="fixed lg:static inset-y-0 left-0 z-50 w-80 bg-slate-100 dark:bg-zinc-900 border-r border-slate-300 dark:border-zinc-800 flex flex-col shadow-xl lg:shadow-none transition-all duration-200 select-none">
         {/* Top Header of Sidebar as sketched in the bottom drawing */}
         <div className="p-3 border-b border-slate-300 dark:border-zinc-800 flex items-center justify-between">
-          {/* Icons: Settings, Bell, Box, Globe, Auth User */}
+          {/* Icons: Settings, Bell, Box, Globe, Bouk (beside Globe), Auth User */}
           <div className="flex items-center space-x-1 sm:space-x-1.5">
             <button
               onClick={onOpenSettings}
@@ -85,6 +88,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <Globe className="w-4 h-4" />
             </div>
+            {/* .Bouk Open Access Library Icon directly beside Globe */}
+            {onOpenBouk && (
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenBouk();
+                  if (window.innerWidth < 1024) onClose();
+                }}
+                className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-colors cursor-pointer border border-amber-500/20"
+                title=".Bouk - Open Access Library & WAEC/NECO Past Questions"
+              >
+                <BookOpen className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={onOpenAuth}
               className={`p-1.5 rounded-lg transition-colors flex items-center ${
@@ -119,16 +136,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Quick Binance Market Launcher */}
-        {onOpenBinanceMarket && (
-          <div className="px-3 pt-2.5">
+        {/* Quick Launchers: .Bouk Open Access Library & Binance Live */}
+        <div className="px-3 pt-2.5 space-y-1.5">
+          {onOpenBouk && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenBouk();
+                if (window.innerWidth < 1024) onClose();
+              }}
+              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 hover:from-amber-500/20 hover:to-orange-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-300 transition-all text-xs font-semibold group cursor-pointer shadow-2xs"
+            >
+              <div className="flex items-center space-x-2">
+                <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                  <BookOpen className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-left">
+                  <span className="font-bold">.Bouk Open Library</span>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-800 dark:text-amber-200">
+                WAEC/NECO
+              </span>
+            </button>
+          )}
+
+          {/* Quick Binance Market Launcher */}
+          {onOpenBinanceMarket && (
             <button
               type="button"
               onClick={() => {
                 onOpenBinanceMarket();
                 if (window.innerWidth < 1024) onClose();
               }}
-              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-300 transition-all text-xs font-semibold group cursor-pointer"
+              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-200/60 dark:bg-zinc-800/60 hover:bg-slate-200 dark:hover:bg-zinc-800 border border-slate-300/60 dark:border-zinc-700/60 text-slate-800 dark:text-zinc-200 transition-all text-xs font-semibold group cursor-pointer"
             >
               <div className="flex items-center space-x-2">
                 <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-500 flex items-center justify-center">
@@ -140,8 +181,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 WS Live
               </span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Section title */}
         <div className="px-4 pt-3 pb-1 text-xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider flex items-center justify-between">

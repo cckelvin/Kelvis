@@ -11,8 +11,9 @@ import { SqlSchemaModal } from "./components/SqlSchemaModal";
 import { SpotifyModal } from "./components/SpotifyModal";
 import { VoiceCallModal } from "./components/VoiceCallModal";
 import { BinanceMarketModal } from "./components/BinanceMarketModal";
+import { BoukModal } from "./components/BoukModal";
 import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack } from "./types";
-import { Trash2, Download, RotateCcw, Sparkles, Code, Terminal, Info, BarChart3, Image as ImageIcon, Activity } from "lucide-react";
+import { Trash2, Download, RotateCcw, Sparkles, Code, Terminal, Info, BarChart3, Image as ImageIcon, Activity, BookOpen } from "lucide-react";
 import {
   fetchSupabaseSessions,
   saveSupabaseSession,
@@ -92,6 +93,7 @@ export default function App() {
   const [isSqlModalOpen, setIsSqlModalOpen] = useState<boolean>(false);
   const [isSpotifyOpen, setIsSpotifyOpen] = useState<boolean>(false);
   const [isBinanceModalOpen, setIsBinanceModalOpen] = useState<boolean>(false);
+  const [isBoukOpen, setIsBoukOpen] = useState<boolean>(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showOptionsMenu, setShowOptionsMenu] = useState<boolean>(false);
 
@@ -568,6 +570,7 @@ export default function App() {
         onOpenAuth={() => setIsAuthOpen(true)}
         userEmail={userEmail}
         onOpenBinanceMarket={() => setIsBinanceModalOpen(true)}
+        onOpenBouk={() => setIsBoukOpen(true)}
       />
 
       {/* Main Window Container matching sketch top rectangle */}
@@ -581,6 +584,7 @@ export default function App() {
           darkTheme={settings.darkTheme}
           onToggleTheme={toggleTheme}
           onOpenBinanceMarket={() => setIsBinanceModalOpen(true)}
+          onOpenBouk={() => setIsBoukOpen(true)}
         />
 
         {/* 3-Dots Options Menu Popup */}
@@ -639,11 +643,21 @@ export default function App() {
                 Kelvis AI Assistant
               </h2>
               <p className="text-xs text-slate-600 dark:text-zinc-400 mb-6 leading-relaxed">
-                Hi! I am **Kelvis**, your intelligent AI assistant. Ask me to generate code, analyze files, answer questions, or run live code previews!
+                Hi! I am **Kelvis**, your intelligent AI assistant. Ask me about WAEC/NECO past questions, Nigerian geography, write and preview code, or stream live Binance market data!
               </p>
 
               {/* Action Quick Starters */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left">
+                <button
+                  onClick={() => setIsBoukOpen(true)}
+                  className="p-3 rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 hover:border-amber-500 text-xs transition-all shadow-2xs group cursor-pointer"
+                >
+                  <div className="font-semibold text-amber-900 dark:text-amber-300 flex items-center space-x-1.5 mb-1">
+                    <BookOpen className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
+                    <span>.Bouk Open Access Library</span>
+                  </div>
+                  <div className="text-[11px] text-amber-700/80 dark:text-amber-400/80">WAEC/NECO Past Questions & Geography</div>
+                </button>
                 <button
                   onClick={() => setIsBinanceModalOpen(true)}
                   className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-amber-500 dark:hover:border-amber-500 text-xs transition-all shadow-2xs group cursor-pointer"
@@ -655,24 +669,14 @@ export default function App() {
                   <div className="text-[11px] text-slate-400">Live Candlesticks, EMA, RSI & MACD</div>
                 </button>
                 <button
-                  onClick={() => setPrompt("Show live Binance BTCUSDT candlestick chart with EMA, RSI and MACD")}
+                  onClick={() => setPrompt("Explain how to solve WAEC Mathematics 2024 quadratic equation step by step")}
                   className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 text-xs transition-all shadow-2xs group cursor-pointer"
                 >
                   <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
                     <BarChart3 className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
-                    <span>Crypto Analysis & Chart</span>
+                    <span>WAEC Exam Solvers</span>
                   </div>
-                  <div className="text-[11px] text-slate-400">Embed live Binance streams in chat</div>
-                </button>
-                <button
-                  onClick={() => setPrompt("Generate an image of a futuristic cyberpunk city with neon lights and flying vehicles")}
-                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-indigo-500 dark:hover:border-indigo-500 text-xs transition-all shadow-2xs group cursor-pointer"
-                >
-                  <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
-                    <ImageIcon className="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform" />
-                    <span>AI Image Generation</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400">Create high-res illustrations & photos</div>
+                  <div className="text-[11px] text-slate-400">Past questions & marking scheme guides</div>
                 </button>
                 <button
                   onClick={() => setPrompt("Code a modern task manager web app with HTML, CSS, and JS")}
@@ -820,6 +824,16 @@ export default function App() {
       <BinanceMarketModal
         isOpen={isBinanceModalOpen}
         onClose={() => setIsBinanceModalOpen(false)}
+      />
+
+      {/* .Bouk Open Access Library & AI Guidance Modal */}
+      <BoukModal
+        isOpen={isBoukOpen}
+        onClose={() => setIsBoukOpen(false)}
+        onAskKelvis={(promptText) => {
+          setIsBoukOpen(false);
+          handleSendMessage(promptText);
+        }}
       />
 
       {/* Live Full Voice Call Modal */}
