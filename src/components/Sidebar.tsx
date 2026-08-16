@@ -2,7 +2,7 @@ import React from "react";
 import {
   Settings,
   Bell,
-  Box,
+  LayoutGrid,
   Globe,
   Plus,
   MessageSquare,
@@ -10,8 +10,6 @@ import {
   X,
   Sparkles,
   User,
-  Activity,
-  BookOpen,
 } from "lucide-react";
 import { ChatSession } from "../types";
 
@@ -25,10 +23,9 @@ interface SidebarProps {
   onDeleteSession: (id: string) => void;
   onOpenSettings: () => void;
   onOpenNotifications: () => void;
+  onOpenApps: () => void;
   onOpenAuth: () => void;
   userEmail?: string | null;
-  onOpenBinanceMarket?: () => void;
-  onOpenBouk?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -41,10 +38,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDeleteSession,
   onOpenSettings,
   onOpenNotifications,
+  onOpenApps,
   onOpenAuth,
   userEmail,
-  onOpenBinanceMarket,
-  onOpenBouk,
 }) => {
   if (!isOpen) return null;
 
@@ -58,9 +54,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Panel */}
       <aside className="fixed lg:static inset-y-0 left-0 z-50 w-80 bg-slate-100 dark:bg-zinc-900 border-r border-slate-300 dark:border-zinc-800 flex flex-col shadow-xl lg:shadow-none transition-all duration-200 select-none">
-        {/* Top Header of Sidebar as sketched in the bottom drawing */}
+        {/* Top Header of Sidebar */}
         <div className="p-3 border-b border-slate-300 dark:border-zinc-800 flex items-center justify-between">
-          {/* Icons: Settings, Bell, Box, Globe, Bouk (beside Globe), Auth User */}
+          {/* Icons: Settings, Bell, Apps (Box), Globe, Auth User */}
           <div className="flex items-center space-x-1 sm:space-x-1.5">
             <button
               onClick={onOpenSettings}
@@ -76,32 +72,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <Bell className="w-4 h-4" />
             </button>
-            <div
-              className="p-1.5 text-slate-700 dark:text-zinc-300"
-              title="3D / AI Box Capabilities"
+            {/* Apps Launcher Button right after Notifications */}
+            <button
+              type="button"
+              onClick={() => {
+                onOpenApps();
+                if (window.innerWidth < 1024) onClose();
+              }}
+              className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:text-amber-500 dark:hover:text-amber-400 transition-colors cursor-pointer"
+              title="Apps (Binance, Bouk, Spotify, Wave Store)"
             >
-              <Box className="w-4 h-4" />
-            </div>
+              <LayoutGrid className="w-4 h-4" />
+            </button>
             <div
               className="p-1.5 text-slate-700 dark:text-zinc-300"
               title="Global Web Connect"
             >
               <Globe className="w-4 h-4" />
             </div>
-            {/* .Bouk Open Access Library Icon directly beside Globe */}
-            {onOpenBouk && (
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenBouk();
-                  if (window.innerWidth < 1024) onClose();
-                }}
-                className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-colors cursor-pointer border border-amber-500/20"
-                title=".Bouk - Open Access Library & WAEC/NECO Past Questions"
-              >
-                <BookOpen className="w-4 h-4" />
-              </button>
-            )}
             <button
               onClick={onOpenAuth}
               className={`p-1.5 rounded-lg transition-colors flex items-center ${
@@ -115,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
 
-          {/* "+ NEW CHAT" pill button strictly matching bottom sketch top-right */}
+          {/* "+ NEW CHAT" pill button */}
           <div className="flex items-center space-x-1">
             <button
               onClick={() => {
@@ -134,54 +122,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <X className="w-5 h-5" />
             </button>
           </div>
-        </div>
-
-        {/* Quick Launchers: .Bouk Open Access Library & Binance Live */}
-        <div className="px-3 pt-2.5 space-y-1.5">
-          {onOpenBouk && (
-            <button
-              type="button"
-              onClick={() => {
-                onOpenBouk();
-                if (window.innerWidth < 1024) onClose();
-              }}
-              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 hover:from-amber-500/20 hover:to-orange-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-300 transition-all text-xs font-semibold group cursor-pointer shadow-2xs"
-            >
-              <div className="flex items-center space-x-2">
-                <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-xs">
-                  <BookOpen className="w-3.5 h-3.5" />
-                </div>
-                <div className="text-left">
-                  <span className="font-bold">.Bouk Open Library</span>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-800 dark:text-amber-200">
-                WAEC/NECO
-              </span>
-            </button>
-          )}
-
-          {/* Quick Binance Market Launcher */}
-          {onOpenBinanceMarket && (
-            <button
-              type="button"
-              onClick={() => {
-                onOpenBinanceMarket();
-                if (window.innerWidth < 1024) onClose();
-              }}
-              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-200/60 dark:bg-zinc-800/60 hover:bg-slate-200 dark:hover:bg-zinc-800 border border-slate-300/60 dark:border-zinc-700/60 text-slate-800 dark:text-zinc-200 transition-all text-xs font-semibold group cursor-pointer"
-            >
-              <div className="flex items-center space-x-2">
-                <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-500 flex items-center justify-center">
-                  <Activity className="w-3.5 h-3.5" />
-                </div>
-                <span>Binance Live Market</span>
-              </div>
-              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
-                WS Live
-              </span>
-            </button>
-          )}
         </div>
 
         {/* Section title */}

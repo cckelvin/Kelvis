@@ -12,8 +12,10 @@ import { SpotifyModal } from "./components/SpotifyModal";
 import { VoiceCallModal } from "./components/VoiceCallModal";
 import { BinanceMarketModal } from "./components/BinanceMarketModal";
 import { BoukModal } from "./components/BoukModal";
-import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack } from "./types";
-import { Trash2, Download, RotateCcw, Sparkles, Code, Terminal, Info, BarChart3, Image as ImageIcon, Activity, BookOpen } from "lucide-react";
+import { AppsModal } from "./components/AppsModal";
+import { QuickQuizDrawer } from "./components/QuickQuizDrawer";
+import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack, QuizPayload } from "./types";
+import { Trash2, Download, RotateCcw, Sparkles } from "lucide-react";
 import {
   fetchSupabaseSessions,
   saveSupabaseSession,
@@ -91,9 +93,12 @@ export default function App() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState<boolean>(false);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
   const [isSqlModalOpen, setIsSqlModalOpen] = useState<boolean>(false);
+  const [isAppsModalOpen, setIsAppsModalOpen] = useState<boolean>(false);
   const [isSpotifyOpen, setIsSpotifyOpen] = useState<boolean>(false);
   const [isBinanceModalOpen, setIsBinanceModalOpen] = useState<boolean>(false);
   const [isBoukOpen, setIsBoukOpen] = useState<boolean>(false);
+  const [isQuizOpen, setIsQuizOpen] = useState<boolean>(false);
+  const [activeQuiz, setActiveQuiz] = useState<QuizPayload | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showOptionsMenu, setShowOptionsMenu] = useState<boolean>(false);
 
@@ -567,10 +572,9 @@ export default function App() {
         onDeleteSession={handleDeleteSession}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenNotifications={() => setIsNotificationsOpen(true)}
+        onOpenApps={() => setIsAppsModalOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
         userEmail={userEmail}
-        onOpenBinanceMarket={() => setIsBinanceModalOpen(true)}
-        onOpenBouk={() => setIsBoukOpen(true)}
       />
 
       {/* Main Window Container matching sketch top rectangle */}
@@ -583,8 +587,6 @@ export default function App() {
           onOpenOptionsMenu={() => setShowOptionsMenu(!showOptionsMenu)}
           darkTheme={settings.darkTheme}
           onToggleTheme={toggleTheme}
-          onOpenBinanceMarket={() => setIsBinanceModalOpen(true)}
-          onOpenBouk={() => setIsBoukOpen(true)}
         />
 
         {/* 3-Dots Options Menu Popup */}
@@ -635,60 +637,16 @@ export default function App() {
         {/* Chat Messages Scroll Container */}
         <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3">
           {!activeSession || activeSession.messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400 dark:text-zinc-500 select-none max-w-lg mx-auto">
-              <div className="w-16 h-16 rounded-full border-2 border-slate-400 dark:border-zinc-600 flex items-center justify-center mb-4 bg-slate-100 dark:bg-zinc-800 shadow-xs">
-                <Sparkles className="w-8 h-8 text-emerald-500" />
+            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400 dark:text-zinc-500 select-none max-w-md mx-auto">
+              <div className="w-14 h-14 rounded-2xl border border-slate-300 dark:border-zinc-700 flex items-center justify-center mb-4 bg-white dark:bg-zinc-800 shadow-xs">
+                <Sparkles className="w-7 h-7 text-amber-500" />
               </div>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-100 mb-2">
-                Kelvis AI Assistant
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-zinc-100 mb-1.5">
+                How can I help you today?
               </h2>
-              <p className="text-xs text-slate-600 dark:text-zinc-400 mb-6 leading-relaxed">
-                Hi! I am **Kelvis**, your intelligent AI assistant. Ask me about WAEC/NECO past questions, Nigerian geography, write and preview code, or stream live Binance market data!
+              <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed max-w-sm">
+                Ask questions, generate and preview code, solve problems, analyze documents, or launch tools from the Apps menu.
               </p>
-
-              {/* Action Quick Starters */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left">
-                <button
-                  onClick={() => setIsBoukOpen(true)}
-                  className="p-3 rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 hover:border-amber-500 text-xs transition-all shadow-2xs group cursor-pointer"
-                >
-                  <div className="font-semibold text-amber-900 dark:text-amber-300 flex items-center space-x-1.5 mb-1">
-                    <BookOpen className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
-                    <span>.Bouk Open Access Library</span>
-                  </div>
-                  <div className="text-[11px] text-amber-700/80 dark:text-amber-400/80">WAEC/NECO Past Questions & Geography</div>
-                </button>
-                <button
-                  onClick={() => setIsBinanceModalOpen(true)}
-                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-amber-500 dark:hover:border-amber-500 text-xs transition-all shadow-2xs group cursor-pointer"
-                >
-                  <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
-                    <Activity className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
-                    <span>Binance Live Market</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400">Live Candlesticks, EMA, RSI & MACD</div>
-                </button>
-                <button
-                  onClick={() => setPrompt("Explain how to solve WAEC Mathematics 2024 quadratic equation step by step")}
-                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 text-xs transition-all shadow-2xs group cursor-pointer"
-                >
-                  <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
-                    <BarChart3 className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
-                    <span>WAEC Exam Solvers</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400">Past questions & marking scheme guides</div>
-                </button>
-                <button
-                  onClick={() => setPrompt("Code a modern task manager web app with HTML, CSS, and JS")}
-                  className="p-3 rounded-2xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 hover:border-amber-500 dark:hover:border-amber-500 text-xs transition-all shadow-2xs group cursor-pointer"
-                >
-                  <div className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center space-x-1.5 mb-1">
-                    <Code className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
-                    <span>Bolt Web App Code</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400">Multi-file generation & live sandbox</div>
-                </button>
-              </div>
             </div>
           ) : (
             activeSession.messages.map((msg, idx) => (
@@ -698,6 +656,10 @@ export default function App() {
                 onSpeak={(txt) => speakText(txt, msg.id)}
                 isSpeaking={currentlySpeakingId === msg.id}
                 onStopSpeaking={stopSpeaking}
+                onOpenQuiz={(quiz) => {
+                  setActiveQuiz(quiz);
+                  setIsQuizOpen(true);
+                }}
                 isStreaming={
                   isLoading &&
                   idx === activeSession.messages.length - 1 &&
@@ -853,6 +815,25 @@ export default function App() {
         onSpeak={(txt) => speakText(txt)}
         isSpeaking={currentlySpeakingId !== null}
         onStopSpeaking={stopSpeaking}
+      />
+
+      {/* Claude-Style Slide-Up Floating Quick Quiz Drawer */}
+      <QuickQuizDrawer
+        isOpen={isQuizOpen}
+        quiz={activeQuiz}
+        onClose={() => setIsQuizOpen(false)}
+        onSubmitQuiz={(submissionText) => {
+          handleSendMessage(submissionText);
+        }}
+      />
+
+      {/* Apps Ecosystem Modal (Binance, Bouk, Spotify, Wave App Store) */}
+      <AppsModal
+        isOpen={isAppsModalOpen}
+        onClose={() => setIsAppsModalOpen(false)}
+        onLaunchBinance={() => setIsBinanceModalOpen(true)}
+        onLaunchBouk={() => setIsBoukOpen(true)}
+        onLaunchSpotify={() => setIsSpotifyOpen(true)}
       />
     </div>
   );
