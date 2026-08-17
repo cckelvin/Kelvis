@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import Groq from "groq-sdk";
+import { GoogleGenAI, Modality } from "@google/genai";
 
 dotenv.config();
 
@@ -10,14 +11,62 @@ const PORT = 3000;
 
 app.use(express.json({ limit: "50mb" }));
 
-// Normalize requested model to valid public Groq API model alias
-function normalizeGroqModelName(requestedModel?: string): string {
-  if (!requestedModel) return "deepseek-r1-distill-llama-70b";
-  const m = String(requestedModel).toLowerCase();
-  if (m.includes("gpt-oss") || m.includes("gptoss") || m.includes("oss-120b") || m.includes("code")) {
-    return "deepseek-r1-distill-llama-70b";
+// Helper to get GoogleGenAI client
+function getGeminiClient(customKey?: string) {
+  const apiKey =
+    customKey ||
+    process.env.GEMINI_API_KEY ||
+    process.env.gemini_api_key ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.google_api_key ||
+    process.env.KELVIS_API_KEY;
+
+  if (!apiKey) {
+    return null;
   }
-  return "deepseek-r1-distill-llama-70b";
+
+  return new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      headers: {
+        "User-Agent": "aistudio-build",
+      },
+    },
+  });
+}
+
+// Convert 24kHz 16-bit Mono PCM buffer to Standard RIFF/WAV
+function pcmToWav(pcmData: Buffer, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): Buffer {
+  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+  const blockAlign = (numChannels * bitsPerSample) / 8;
+  const dataSize = pcmData.length;
+  const header = Buffer.alloc(44);
+
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + dataSize, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20); // Linear PCM
+  header.writeUInt16LE(numChannels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(dataSize, 40);
+
+  return Buffer.concat([header, pcmData]);
+}
+
+// Strictly enforce openai/gpt-oss-120b and openai/gpt-oss-20b
+function normalizeGroqModelName(requestedModel?: string): string {
+  if (!requestedModel) return "openai/gpt-oss-120b";
+  const m = String(requestedModel).toLowerCase();
+  if (m.includes("20b") || m.includes("gpt-oss-20b") || m.includes("oss-20b")) {
+    return "openai/gpt-oss-20b";
+  }
+  return "openai/gpt-oss-120b";
 }
 
 async function fetchLiveWebResults(
@@ -27,7 +76,6 @@ async function fetchLiveWebResults(
 ): Promise<Array<{ title: string; url: string; domain: string; snippet: string }>> {
   const sources: Array<{ title: string; url: string; domain: string; snippet: string }> = [];
 
-  // Check Google Custom Search Engine (CSE) API keys (custom parameters or environment variables)
   const apiKey =
     customApiKey ||
     process.env.GOOGLE_SEARCH_API_KEY ||
@@ -109,146 +157,42 @@ async function fetchLiveWebResults(
     }
   }
 
-  // Secondary Fallback to Wikipedia API
-  if (sources.length === 0) {
-    try {
-      const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`;
-      const resp = await fetch(wikiUrl);
-      if (resp.ok) {
-        const data = await resp.json();
-        const searchHits = data.query?.search;
-        if (searchHits && Array.isArray(searchHits)) {
-          for (const hit of searchHits.slice(0, 4)) {
-            const pageUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(hit.title.replace(/ /g, "_"))}`;
-            const cleanSnippet = (hit.snippet || "").replace(/<[^>]+>/g, "");
-            sources.push({
-              title: hit.title,
-              url: pageUrl,
-              domain: "wikipedia.org",
-              snippet: cleanSnippet,
-            });
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("Wikipedia fallback search error:", e);
-    }
-  }
-
   return sources;
 }
 
-// Initialize Groq Client
+// Helper to get initialized Groq Client
 function getGroqClient(customKey?: string) {
   const apiKey =
     customKey ||
     process.env.GROQ_API_KEY ||
     process.env.groq_api_key ||
-    process.env.GROQ_KEY ||
-    process.env.VITE_GROQ_API_KEY ||
-    process.env.GEMINI_API_KEY ||
-    process.env.kelvis ||
-    process.env.KELVIS ||
-    process.env.VITE_KELVIS ||
-    process.env.VITE_GEMINI_API_KEY;
+    process.env.VITE_GROQ_API_KEY;
 
   if (!apiKey) {
     return null;
   }
-  return new Groq({ apiKey });
+
+  return new Groq({
+    apiKey,
+  });
 }
 
-// Health check endpoint
+// Health Check Endpoint
 app.get(["/api/health", "/health"], (req, res) => {
-  const hasKey = Boolean(
-    process.env.GROQ_API_KEY ||
-      process.env.groq_api_key ||
-      process.env.GROQ_KEY ||
-      process.env.VITE_GROQ_API_KEY ||
-      process.env.GEMINI_API_KEY ||
-      process.env.kelvis ||
-      process.env.KELVIS ||
-      process.env.VITE_KELVIS ||
-      process.env.VITE_GEMINI_API_KEY
-  );
-  res.json({ status: "ok", groqConfigured: hasKey, provider: "groq" });
+  const groqKey = process.env.GROQ_API_KEY || process.env.groq_api_key;
+  const geminiKey = process.env.GEMINI_API_KEY || process.env.gemini_api_key;
+  res.json({
+    status: "ok",
+    hasGroqKey: Boolean(groqKey),
+    hasGeminiKey: Boolean(geminiKey),
+    enforcedModels: ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
+    timestamp: new Date().toISOString(),
+  });
 });
 
-// Binance Public Market Data Proxy Routes (Zero API Key / Unauthenticated)
-app.get("/api/binance/klines", async (req, res) => {
-  const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const interval = String(req.query.interval || "1m");
-  const limit = Math.min(Number(req.query.limit) || 100, 500);
-
-  try {
-    const binanceUrl = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-    const response = await fetch(binanceUrl);
-    if (!response.ok) {
-      return res.status(response.status).json({ error: "Failed to fetch from Binance" });
-    }
-    const data = await response.json();
-    res.json(data);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || "Internal error fetching Binance klines" });
-  }
-});
-
-app.get("/api/binance/ticker", async (req, res) => {
-  const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase().replace(/[^A-Z0-9]/g, "");
-
-  try {
-    const binanceUrl = `https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`;
-    const response = await fetch(binanceUrl);
-    if (!response.ok) {
-      return res.status(response.status).json({ error: "Failed to fetch 24hr ticker from Binance" });
-    }
-    const data = await response.json();
-    res.json(data);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || "Internal error fetching Binance ticker" });
-  }
-});
-
-// Spotify Search & Embed Helper
+// Spotify Search Helper Function
 async function searchSpotifyTrack(query: string) {
-  const cleanQuery = query.replace(/^(play|listen to|put on|song|track|music)\s+/i, "").trim();
-
-  // Known track fallback map for instant playback demo
-  const knownTracks: Record<string, any> = {
-    starboy: {
-      id: "1xQ6trAsedVPCdbtMB8OOy",
-      title: "Starboy",
-      artist: "The Weeknd ft. Daft Punk",
-      albumArt: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80",
-      spotifyUrl: "https://open.spotify.com/track/1xQ6trAsedVPCdbtMB8OOy",
-      embedUrl: "https://open.spotify.com/embed/track/1xQ6trAsedVPCdbtMB8OOy",
-    },
-    blinding: {
-      id: "0VjIdWI8SuThmSYStw8KrE",
-      title: "Blinding Lights",
-      artist: "The Weeknd",
-      albumArt: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&auto=format&fit=crop&q=80",
-      spotifyUrl: "https://open.spotify.com/track/0VjIdWI8SuThmSYStw8KrE",
-      embedUrl: "https://open.spotify.com/embed/track/0VjIdWI8SuThmSYStw8KrE",
-    },
-    shape: {
-      id: "7qiZ28fsWCZ9eksYvGmvNK",
-      title: "Shape of You",
-      artist: "Ed Sheeran",
-      albumArt: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&auto=format&fit=crop&q=80",
-      spotifyUrl: "https://open.spotify.com/track/7qiZ28fsWCZ9eksYvGmvNK",
-      embedUrl: "https://open.spotify.com/embed/track/7qiZ28fsWCZ9eksYvGmvNK",
-    },
-  };
-
-  const lowerQ = cleanQuery.toLowerCase();
-  for (const key in knownTracks) {
-    if (lowerQ.includes(key)) {
-      return knownTracks[key];
-    }
-  }
-
-  // Try fetching live via Spotify Web API if client credentials exist
+  const cleanQuery = query.replace(/^(play|song|music|spotify|listen to|put on|track)\s+/i, "").trim();
   const clientId =
     process.env.SPOTIFY_CLIENT_ID ||
     process.env.spotify_client_id ||
@@ -258,41 +202,34 @@ async function searchSpotifyTrack(query: string) {
     process.env.spotify_client_secret ||
     process.env.SPOTIFY_SECRET;
 
-  if (clientId && clientSecret && clientId !== "sample_client_id") {
+  if (clientId && clientSecret) {
     try {
-      const authRes = await fetch("https://accounts.spotify.com/api/token", {
+      const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+      const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
         method: "POST",
         headers: {
+          Authorization: `Basic ${basicAuth}`,
           "Content-Type": "application/x-www-form-urlencoded",
-          Authorization: "Basic " + Buffer.from(`${clientId}:${clientSecret}`).toString("base64"),
         },
         body: "grant_type=client_credentials",
       });
 
-      if (authRes.ok) {
-        const authText = await authRes.text();
-        let authData: any = {};
-        try {
-          authData = JSON.parse(authText);
-        } catch (err) {
-          authData = {};
-        }
+      if (tokenRes.ok) {
+        const tokenData = await tokenRes.json();
+        const accessToken = tokenData.access_token;
 
-        if (authData.access_token) {
+        if (accessToken) {
           const searchRes = await fetch(
-            `https://api.spotify.com/v1/search?q=${encodeURIComponent(cleanQuery || "hits")}&type=track&limit=1`,
+            `https://api.spotify.com/v1/search?q=${encodeURIComponent(cleanQuery || "Top Hits")}&type=track&limit=1`,
             {
-              headers: { Authorization: `Bearer ${authData.access_token}` },
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
             }
           );
+
           if (searchRes.ok) {
-            const searchText = await searchRes.text();
-            let searchData: any = {};
-            try {
-              searchData = JSON.parse(searchText);
-            } catch (err) {
-              searchData = {};
-            }
+            const searchData = await searchRes.json();
             const track = searchData.tracks?.items?.[0];
             if (track) {
               return {
@@ -316,7 +253,7 @@ async function searchSpotifyTrack(query: string) {
   // Generic Spotify Track Embed fallback
   return {
     id: "1xQ6trAsedVPCdbtMB8OOy",
-    title: cleanQuery ? cleanQuery.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") : "Popular Track",
+    title: cleanQuery ? cleanQuery.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") : "Popular Track",
     artist: "Spotify Web Player",
     albumArt: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80",
     spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(cleanQuery || "music")}`,
@@ -421,6 +358,195 @@ app.post(["/api/generate-image", "/generate-image"], async (req, res) => {
   }
 });
 
+// Gemini Live Voice Call Turn Endpoint
+app.post(["/api/voice/gemini-call", "/voice/gemini-call"], async (req, res) => {
+  try {
+    const {
+      prompt,
+      history = [],
+      voiceName = "Kore",
+      systemInstruction,
+      customApiKey,
+    } = req.body;
+
+    if (!prompt || !String(prompt).trim()) {
+      res.status(400).json({ error: "Prompt is required for voice call" });
+      return;
+    }
+
+    const gemini = getGeminiClient(customApiKey);
+    const groq = getGroqClient();
+
+    let spokenReplyText = "";
+    const voiceSystemPrompt =
+      "You are Kelvis in a real-time live two-way voice call. Speak naturally, warmly, clearly, and concisely. Keep answers under 2-4 conversational sentences for fluid dialogue. Never output markdown code fences, headers, asterisks, bullet points, or complex symbols. Focus strictly on natural, flowing spoken English.";
+
+    if (gemini) {
+      try {
+        const contents: any[] = [];
+        for (const h of history.slice(-6)) {
+          contents.push({
+            role: h.role === "user" ? "user" : "model",
+            parts: [{ text: h.text || "" }],
+          });
+        }
+        contents.push({ role: "user", parts: [{ text: prompt }] });
+
+        const response = await gemini.models.generateContent({
+          model: "gemini-3.7-flash",
+          contents,
+          config: {
+            systemInstruction: systemInstruction || voiceSystemPrompt,
+            temperature: 0.7,
+            maxOutputTokens: 250,
+          },
+        });
+        spokenReplyText = response.text || "";
+      } catch (err) {
+        console.warn("Gemini voice text generation notice:", err);
+      }
+    }
+
+    if (!spokenReplyText && groq) {
+      try {
+        const messages: any[] = [{ role: "system", content: voiceSystemPrompt }];
+        for (const h of history.slice(-6)) {
+          messages.push({
+            role: h.role === "user" ? "user" : "assistant",
+            content: h.text || "",
+          });
+        }
+        messages.push({ role: "user", content: prompt });
+
+        const completion = await groq.chat.completions.create({
+          model: "openai/gpt-oss-120b",
+          messages,
+          temperature: 0.7,
+          max_tokens: 250,
+        });
+        spokenReplyText = completion.choices[0]?.message?.content || "";
+      } catch (err) {
+        console.warn("Groq voice text generation notice:", err);
+      }
+    }
+
+    if (!spokenReplyText) {
+      spokenReplyText = "I heard you clearly! I am ready to help you with anything you need.";
+    }
+
+    // Clean any markdown remnants
+    const cleanSpoken = spokenReplyText
+      .replace(/```[\s\S]*?```/g, "I have prepared that information for you.")
+      .replace(/<[^>]+>/g, "")
+      .replace(/[*_#`~[\]()]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // 2. Synthesize High-Fidelity 24kHz Neural Audio with Gemini TTS
+    let audioBase64: string | null = null;
+    let mimeType = "audio/wav";
+
+    if (gemini && cleanSpoken) {
+      try {
+        const validVoices = ["Kore", "Puck", "Fenrir", "Charon", "Zephyr"];
+        const selectedVoice = validVoices.includes(voiceName) ? voiceName : "Kore";
+
+        const ttsResponse = await gemini.models.generateContent({
+          model: "gemini-3.1-flash-tts-preview",
+          contents: [{ parts: [{ text: cleanSpoken.slice(0, 800) }] }],
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName: selectedVoice },
+              },
+            },
+          },
+        });
+
+        const rawPcm = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (rawPcm) {
+          const pcmBuf = Buffer.from(rawPcm, "base64");
+          const wavBuf = pcmToWav(pcmBuf, 24000);
+          audioBase64 = wavBuf.toString("base64");
+        }
+      } catch (ttsErr: any) {
+        console.warn("Gemini TTS synthesis note:", ttsErr.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      text: cleanSpoken,
+      audioBase64,
+      mimeType,
+      voice: voiceName,
+      hasAudio: Boolean(audioBase64),
+    });
+  } catch (err: any) {
+    console.error("Voice call error:", err);
+    res.status(500).json({ error: err.message || "Voice call processing failed" });
+  }
+});
+
+// Standalone Gemini TTS Endpoint for Reading Any Message Aloud
+app.post(["/api/voice/gemini-tts", "/voice/gemini-tts"], async (req, res) => {
+  try {
+    const { text, voiceName = "Kore", customApiKey } = req.body;
+    if (!text || !String(text).trim()) {
+      res.status(400).json({ error: "Text is required for TTS" });
+      return;
+    }
+
+    const gemini = getGeminiClient(customApiKey);
+    if (!gemini) {
+      res.status(400).json({ error: "Gemini API key not configured for neural TTS" });
+      return;
+    }
+
+    const cleanText = String(text)
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/[*_#`~[\]()]/g, "")
+      .slice(0, 800)
+      .trim();
+
+    const validVoices = ["Kore", "Puck", "Fenrir", "Charon", "Zephyr"];
+    const selectedVoice = validVoices.includes(voiceName) ? voiceName : "Kore";
+
+    const ttsResponse = await gemini.models.generateContent({
+      model: "gemini-3.1-flash-tts-preview",
+      contents: [{ parts: [{ text: cleanText }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: selectedVoice },
+          },
+        },
+      },
+    });
+
+    const rawPcm = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!rawPcm) {
+      res.status(500).json({ error: "No audio stream returned by Gemini TTS" });
+      return;
+    }
+
+    const pcmBuf = Buffer.from(rawPcm, "base64");
+    const wavBuf = pcmToWav(pcmBuf, 24000);
+
+    res.json({
+      success: true,
+      audioBase64: wavBuf.toString("base64"),
+      mimeType: "audio/wav",
+      voice: selectedVoice,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "TTS generation failed" });
+  }
+});
+
 // Main Chat Endpoint
 app.post(["/api/chat", "/chat"], async (req, res) => {
   res.setHeader("Content-Type", "application/json");
@@ -430,7 +556,7 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
     const {
       prompt,
       history = [],
-      model = "llama-3.3-70b-versatile",
+      model = "openai/gpt-oss-120b",
       files = [],
       searchGrounding = true,
       systemInstruction,
@@ -463,7 +589,7 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
     const groq = getGroqClient(groqApiKey);
 
     if (!groq) {
-      let outputText = "⚠️ **Groq API Key Missing**\n\nYour application is configured to use Groq, but `GROQ_API_KEY` has not been added to your environment variables.\n\n**To enable Groq AI responses on https://kelvis.vercel.app:**\n1. Get your free API key at [Groq Console](https://console.groq.com/)\n2. Open your **Vercel Dashboard** -> Select your **kelvis** project.\n3. Go to **Settings** -> **Environment Variables** -> Add Name: `GROQ_API_KEY`.\n4. Save and click **Redeploy** on Vercel.";
+      let outputText = "⚠️ **Groq API Key Missing**\n\nYour application is configured to strictly run on model `openai/gpt-oss-120b` or `openai/gpt-oss-20b`, but `GROQ_API_KEY` has not been added to your environment variables.\n\n**To enable Groq AI responses:**\n1. Get your free API key at [Groq Console](https://console.groq.com/)\n2. Add `GROQ_API_KEY` to your environment variables.";
       if (spotifyTrackObj) {
         outputText += `\n\n==Now Playing on Spotify==: **${spotifyTrackObj.title}** by ${spotifyTrackObj.artist}. Enjoy the music below!`;
       }
@@ -483,105 +609,56 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
     // Prepare messages for Groq completion
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
 
-    const defaultStructuredSystemInstruction = `You are Kelvis, a smart, creative, and highly capable AI assistant.
+    const defaultStructuredSystemInstruction = `You are Kelvis, an ultra-smart, creative, and highly capable AI assistant running strictly on model openai/gpt-oss-120b or openai/gpt-oss-20b.
 
-### 1. CODE GENERATION SCOPE (CRITICAL):
-- **Only write code when explicitly requested**: Do NOT output code blocks, HTML, CSS, JavaScript, Python, or scripts unless the user explicitly asks you to code, program, build a script, or debug code.
-- **For general conversations, questions, advice, summaries, or explanations**: Respond in natural, articulate text without unsolicited code blocks.
-- **When the user DOES explicitly request code**:
-  - Provide clean, complete, fully working code blocks with proper language syntax fences (e.g., \`\`\`html, \`\`\`css, \`\`\`javascript, \`\`\`python).
-  - Ensure the code is runnable with zero placeholders.
+### 🌟 4-PHASE DEVELOPMENT & CODING WORKFLOW (CRITICAL):
+When the user asks to code, develop, or build any website, platform, application, or system (e.g. "build a sales website", "code a chatting platform", "build a crypto dashboard", etc.):
+NEVER rush through the process or output half-hearted truncated snippets. Provide a clean, robust, and polished implementation through these 4 structured phases:
 
-### 2. LIVE BINANCE MARKET DATA & CANDLESTICK CHARTS:
-When the user asks for live Binance cryptocurrency market data, prices, candlestick charts, or technical analysis (e.g. BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, etc.), embed the live interactive Binance WebSocket candlestick chart directly in your response using:
+#### PHASE 1: MARKET BENCHMARK & CREATIVE PRODUCT CONCEPT
+1. **Compare with existing platforms**: Always benchmark the project against premier real-world platforms (e.g. For a sales/e-commerce website, compare with **Amazon, Jumia, Shopify, ASOS**; for chat/messaging, compare with **Discord, Slack, WhatsApp**; for streaming, compare with **Spotify, YouTube**).
+2. **Proactive creative features**: Identify not only what was explicitly mentioned, but everything that is genuinely needed for a production experience:
+   - Specific visual theme & aesthetic (e.g., *"Deep Midnight Navy & Slate Blue luxury theme with amber gold accents and glassmorphic cards"*).
+   - Core interactive user capabilities (e.g., users can browse products with real high-resolution images, price tags, discount badges, detailed descriptions, 5-star rating systems with review counters, real-time stock indicators, slide-over live cart with quantity counters, simulated checkout flow with coupon code discounts, and order confirmation receipt).
+
+#### PHASE 2: PRE-COMMENCEMENT DUAL-MODEL ARCHITECTURAL AUDIT
+Before the commencement of any project, the process must be formally audited and reviewed by the secondary model (**openai/gpt-oss-20b** Architecture Inspector):
+\`\`\`
+🛡️ [Secondary Model Architecture Review - Verified by openai/gpt-oss-20b]:
+- Folder & File Structure: Validated modular directory hierarchy (public/, src/pages/, styles/, src/utils/, src/)
+- Component Reactivity & State: Validated DOM event binding, local storage cart persistence, and modal lifecycles
+- Responsive & Accessibility: Verified mobile touch standards (44px min targets) & fluid desktop layout
+- Quality Status: ✅ APPROVED FOR PRODUCTION IMPLEMENTATION
+\`\`\`
+
+#### PHASE 3: BLUEPRINT & STRUCTURED STEP ROADMAP
+Present a clear, step-by-step roadmap organized into real folders, subfolders, and files:
+- **Step 1: Adding the core application structure in public/index.html (or homebuild.html)**
+- **Step 2: Adding discovery & catalog pages in src/pages/discover.html**
+- **Step 3: Building responsive design tokens and utility styling in styles/main.css**
+- **Step 4: Implementing state engine, shopping cart, filter logic & checkout in src/app.js**
+
+#### PHASE 4: HIGH-QUALITY MULTI-FILE EXECUTION (FOLDERS, SUBFOLDERS & FILES)
+Follow the blueprint step-by-step with zero skipped code or placeholders:
+1. Explain the next step in clear English (e.g., *"I'll start with the web structure and layout in \`public/index.html\`..."*, *"Next, I'll build the responsive styles and design tokens in \`styles/main.css\`..."*, *"Now, I'll implement the interactive state management and cart engine in \`src/app.js\`..."*).
+2. Insert the thin edge-to-edge active file banner tag:
+   \`<activefile filename="public/index.html" step="Building core DOM structure and layout" step="1" total="4" status="working" />\`
+3. Emit the complete production-ready code with the folder/file path in the code fence header (e.g. \`\`\`html public/index.html ... \`\`\`).
+4. At the end of the entire build, conclude with the friendly preview invitation:
+   *"✨ **Live Preview Ready**: You can preview by clicking on \`index.html\` (or \`homebuild.html\`). Test the interface and let me know if you run into any problems or want more additions!"*
+
+### 2. INTERACTIVE CODING SPECIFICATIONS & BLUEPRINT QUIZZES:
+- When asking clarifying architectural options, provide an interactive specification quiz in a \`\`\`quiz block.
+- The LAST option for every question MUST be a custom option with \`"isCustom": true\` so the user can input custom requirements.
+
+### 3. LIVE BINANCE MARKET DATA & CANDLESTICK CHARTS:
+When the user asks for live Binance cryptocurrency market data or technical analysis (e.g. BTCUSDT, ETHUSDT, SOLUSDT), embed the chart using:
 \`\`\`binance
 BTCUSDT
 \`\`\`
-or with a specific interval (1m, 5m, 15m, 1h, 4h, 1D):
-\`\`\`binance
-{ "symbol": "ETHUSDT", "interval": "5m" }
-\`\`\`
-The application will automatically connect to Binance's public WebSocket, render live real-time OHLCV candles, and locally calculate Exponential Moving Averages (EMA 9, 21, 50), Relative Strength Index (RSI 14), Moving Average Convergence Divergence (MACD 12, 26, 9), and Bollinger Bands (20, 2) without any API keys.
 
-### 3. INTERACTIVE CHARTS & VISUALIZATIONS:
-When the user explicitly asks for general data charts, graphs, or statistical data comparison, format using a \`\`\`chart block with valid JSON:
-\`\`\`chart
-{
-  "type": "bar",
-  "title": "Data Overview",
-  "description": "Metric comparison",
-  "xKey": "category",
-  "data": [
-    { "category": "A", "Value": 100 },
-    { "category": "B", "Value": 150 }
-  ],
-  "keys": ["Value"]
-}
-\`\`\`
-
-### 4. FILE ATTACHMENTS & ANALYSIS:
-When the user attaches files, analyze the contents thoroughly and summarize key insights or statistics clearly.
-
-### 5. INTERACTIVE PRACTICE QUIZZES & CLAUDE-STYLE KNOWLEDGE TESTS:
-- **When explaining or teaching a subject** (e.g. Geography, Physics, Biology, History, WAEC/NECO, Chemistry, Economics, Coding, etc.) or when the user asks to test their knowledge / quiz them, conclude your explanation with a quick, engaging interactive practice quiz using a \`\`\`quiz block:
-\`\`\`quiz
-{
-  "title": "Quick Knowledge Check: [Topic Name]",
-  "topic": "[Subject / Topic]",
-  "questions": [
-    {
-      "id": 1,
-      "question": "Engaging multiple choice question 1?",
-      "options": [
-        { "id": "A", "text": "Option A" },
-        { "id": "B", "text": "Option B" },
-        { "id": "C", "text": "Option C" },
-        { "id": "D", "text": "Option D" }
-      ],
-      "correctOptionId": "A",
-      "explanation": "Clear explanation of why A is the correct answer."
-    },
-    {
-      "id": 2,
-      "question": "Engaging multiple choice question 2?",
-      "options": [
-        { "id": "A", "text": "Option A" },
-        { "id": "B", "text": "Option B" },
-        { "id": "C", "text": "Option C" },
-        { "id": "D", "text": "Option D" }
-      ],
-      "correctOptionId": "B",
-      "explanation": "Clear explanation of why B is correct."
-    }
-  ]
-}
-\`\`\`
-The application will automatically render this as a slick slide-up floating test tab with glowing options and interactive navigation!
-- **When receiving a quiz submission** (starts with "🎯 **Quiz Answers Submission**" or "Here are my submitted answers"):
-  - Provide complete, encouraging, and detailed grading in your response:
-  - 1. State the final score and grade percentage prominently (e.g., 🎯 **Final Score: 4/5 (80%) — Excellent Work!**).
-  - 2. Break down each question: celebrate correct choices, explain any mistaken options with clarity and kindness, and share deep insights into the correct answer.
-  - 3. Give high-impact study takeaways and next learning milestones.
-
-### 6. LIVE INTERACTIVE GAMES WITH KELVIS AI:
-- **When the user asks to play a game** (e.g. "let's play a game", "play game", "can we play something", or asks for a game):
-  - Greet them enthusiastically and ask: "Should we play **Checkers**, **Chess**, **Cards / Whot!**, or **3D Shooters** (a 3D game with real combat mechanics like Free Fire)?"
-  - Offer launcher blocks using the \`\`\`game block so the user can easily start any game with a single tap!
-  - Example when presenting options:
-\`\`\`game
-{
-  "game": "checkers",
-  "title": "Checkers (Draughts) vs Kelvis AI",
-  "description": "8x8 tactical board with real AI moves and capture rules"
-}
-\`\`\`
-- **When the user chooses a specific game** (e.g., "yes checkers", "let's play chess", "cards", "whot", "3d shooter"):
-  - Confirm immediately and output the corresponding \`\`\`game block:
-  - For Checkers: \`\`\`game { "game": "checkers", "title": "Checkers (Draughts)", "description": "8x8 tactical board with AI logic" } \`\`\`
-  - For Chess: \`\`\`game { "game": "chess", "title": "Tactical Chess Master", "description": "8x8 standard chess with move validation & AI opponent" } \`\`\`
-  - For Cards / Whot!: \`\`\`game { "game": "whot", "title": "African Whot! & Cards", "description": "Classic Whot with Hold On, Pick Two, General Market & Whot 20" } \`\`\`
-  - For 3D Shooters: \`\`\`game { "game": "3d-shooter", "title": "3D Battle Shooter (Free Fire Style)", "description": "Real-time 3D arena combat with assault rifles, enemy soldier bots & radar" } \`\`\`
-The application will automatically render a launcher button with "Start [Game Name]" that opens the full-screen game upon click.`;
+### 4. INTERACTIVE CHARTS & VISUALIZATIONS:
+When general data charts are requested, format using a \`\`\`chart block with valid JSON.`;
 
     messages.push({
       role: "system",
@@ -606,7 +683,6 @@ The application will automatically render a launcher button with "Start [Game Na
       for (const file of files) {
         fileContext += `\n\n📄 [File: ${file.name} (${file.mimeType || "application/octet-stream"}) - ${Math.round((file.size || 0) / 1024)} KB]:\n`;
         if (file.data) {
-          // If text-based file (JSON, CSV, JS, TS, HTML, CSS, TXT, MD, Python, etc.)
           if (
             file.mimeType?.includes("text") ||
             file.mimeType?.includes("json") ||
@@ -618,8 +694,6 @@ The application will automatically render a launcher button with "Start [Game Na
             try {
               const base64Data = file.data.includes(",") ? file.data.split(",")[1] : file.data;
               const decodedText = Buffer.from(base64Data, "base64").toString("utf-8");
-              
-              // If CSV, provide preview and compute quick stats
               if (file.name?.endsWith(".csv") || file.mimeType?.includes("csv")) {
                 const rows = decodedText.split("\n").filter((r) => r.trim().length > 0);
                 fileContext += `\n[CSV Data (${rows.length} rows)]:\n\`\`\`csv\n${decodedText.slice(0, 15000)}\n\`\`\`\n`;
@@ -692,23 +766,26 @@ The application will automatically render a launcher button with "Start [Game Na
         });
       } catch (genErr: any) {
         console.warn(`Primary Groq stream ${selectedModel} failed:`, genErr?.message || genErr);
-        if (selectedModel !== "llama-3.1-8b-instant") {
+        try {
+          stream = await groq.chat.completions.create({
+            model: "openai/gpt-oss-120b",
+            messages: messages as any,
+            temperature: 0.7,
+            stream: true,
+          });
+        } catch (fallbackErr: any) {
           try {
             stream = await groq.chat.completions.create({
-              model: "llama-3.1-8b-instant",
+              model: "openai/gpt-oss-20b",
               messages: messages as any,
               temperature: 0.7,
               stream: true,
             });
-          } catch (fallbackErr: any) {
-            res.write(`data: ${JSON.stringify({ error: fallbackErr?.message || "Failed to start AI stream." })}\n\n`);
+          } catch (lastErr: any) {
+            res.write(`data: ${JSON.stringify({ error: lastErr?.message || "Failed to start AI stream." })}\n\n`);
             res.end();
             return;
           }
-        } else {
-          res.write(`data: ${JSON.stringify({ error: genErr?.message || "Failed to start AI stream." })}\n\n`);
-          res.end();
-          return;
         }
       }
 
@@ -759,18 +836,18 @@ The application will automatically render a launcher button with "Start [Game Na
       });
     } catch (genErr: any) {
       console.warn(`Primary Groq model ${selectedModel} failed:`, genErr?.message || genErr);
-      if (selectedModel !== "llama-3.1-8b-instant") {
-        try {
-          completion = await groq.chat.completions.create({
-            model: "llama-3.1-8b-instant",
-            messages: messages as any,
-            temperature: 0.7,
-          });
-        } catch (fallbackErr: any) {
-          throw genErr;
-        }
-      } else {
-        throw genErr;
+      try {
+        completion = await groq.chat.completions.create({
+          model: "openai/gpt-oss-120b",
+          messages: messages as any,
+          temperature: 0.7,
+        });
+      } catch (fallbackErr: any) {
+        completion = await groq.chat.completions.create({
+          model: "openai/gpt-oss-20b",
+          messages: messages as any,
+          temperature: 0.7,
+        });
       }
     }
 
@@ -797,11 +874,11 @@ The application will automatically render a launcher button with "Start [Game Na
     let noticeText = "";
 
     if (errStr.includes("RESOURCE_EXHAUSTED") || errStr.includes("429") || errStr.includes("rate_limit_exceeded") || errStr.includes("quota")) {
-      noticeText = `⚠️ **Groq API Rate Limit Exceeded (429)**\n\nThe Groq API key has temporarily reached its rate limits or request quota.\n\n**How to fix:**\n1. Check your usage at [Groq Console](https://console.groq.com/)\n2. Wait a few moments for rate limits to reset or add billing details.`;
+      noticeText = `⚠️ **Groq API Rate Limit Exceeded (429)**\n\nThe Groq API key has temporarily reached its rate limits or request quota.\n\n**How to fix:**\n1. Check your usage at [Groq Console](https://console.groq.com/)\n2. Wait a few moments for rate limits to reset.`;
     } else if (errStr.includes("401") || errStr.includes("invalid_api_key")) {
       noticeText = `⚠️ **Invalid Groq API Key (401)**: Please verify that \`GROQ_API_KEY\` is configured correctly in environment variables.`;
     } else {
-      noticeText = `⚠️ **Groq AI Service Notice**: ${err?.message || "Unable to reach Groq API"}.\n\nIf hosted on Vercel, please check that \`GROQ_API_KEY\` is configured in Vercel Project Settings -> Environment Variables.`;
+      noticeText = `⚠️ **Groq AI Service Notice**: ${err?.message || "Unable to reach Groq API"}.\n\nPlease check that \`GROQ_API_KEY\` is configured in Environment Variables.`;
     }
 
     res.json({

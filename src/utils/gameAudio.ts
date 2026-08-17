@@ -16,7 +16,7 @@ function getAudioContext(): AudioContext | null {
   return audioCtx;
 }
 
-export function playSound(type: "click" | "move" | "capture" | "card" | "shoot" | "hit" | "reload" | "victory" | "defeat") {
+export function playSound(type: "click" | "move" | "capture" | "card" | "shoot" | "hit" | "reload" | "victory" | "defeat" | "code" | "king") {
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -24,6 +24,38 @@ export function playSound(type: "click" | "move" | "capture" | "card" | "shoot" 
     const now = ctx.currentTime;
 
     switch (type) {
+      case "code": {
+        // High-tech terminal compiler blip
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.exponentialRampToValueAtTime(1760, now + 0.06);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.08);
+        break;
+      }
+      case "king": {
+        // Grand fanfare chime
+        const notes = [440, 554.37, 659.25, 880];
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(freq, now + i * 0.06);
+          gain.gain.setValueAtTime(0.18, now + i * 0.06);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.2);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + i * 0.06);
+          osc.stop(now + i * 0.06 + 0.2);
+        });
+        break;
+      }
       case "click": {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();

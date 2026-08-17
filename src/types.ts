@@ -55,8 +55,9 @@ export interface AppSettings {
 export type BoukClassification = "edu" | "tech" | "business" | "science" | "geo" | "humanities" | "general";
 
 export interface QuizOption {
-  id: string; // "A" | "B" | "C" | "D"
+  id: string; // "A" | "B" | "C" | "D" | "CUSTOM"
   text: string;
+  isCustom?: boolean;
 }
 
 export interface QuizQuestion {
@@ -65,21 +66,21 @@ export interface QuizQuestion {
   options: QuizOption[];
   correctOptionId?: string;
   explanation?: string;
+  allowCustomAnswer?: boolean;
 }
 
 export interface QuizPayload {
   title?: string;
   topic?: string;
+  isCodingSpecification?: boolean;
   questions: QuizQuestion[];
 }
 
-export type GameType = "checkers" | "chess" | "cards" | "whot" | "3d-shooter" | "shooter";
-
-export interface GamePayload {
-  game: GameType | "all";
-  title: string;
-  description?: string;
-  options?: string[];
+export interface ActiveFileProgress {
+  filename: string;
+  status: string;
+  stepIndex?: number;
+  totalSteps?: number;
 }
 
 export interface Bouk {

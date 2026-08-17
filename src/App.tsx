@@ -14,8 +14,7 @@ import { BinanceMarketModal } from "./components/BinanceMarketModal";
 import { BoukModal } from "./components/BoukModal";
 import { AppsModal } from "./components/AppsModal";
 import { QuickQuizDrawer } from "./components/QuickQuizDrawer";
-import { GameArenaModal } from "./components/games/GameArenaModal";
-import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack, QuizPayload, GameType } from "./types";
+import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack, QuizPayload } from "./types";
 import { Trash2, Download, RotateCcw, Sparkles } from "lucide-react";
 import {
   fetchSupabaseSessions,
@@ -25,13 +24,14 @@ import {
   toValidUUID,
   subscribeToSupabaseChats,
 } from "./lib/supabaseSync";
+import { isCodingPrompt, generateCodingSpecificationQuiz } from "./utils/quizParser";
 
 const INITIAL_SESSIONS: ChatSession[] = [
   {
     id: toValidUUID("session-1"),
     title: "Kelvis Capabilities & Info",
     updatedAt: "Just now",
-    model: "gpt-oss-120b",
+    model: "openai/gpt-oss-120b",
     messages: [
       {
         id: toValidUUID("msg-1"),
@@ -42,7 +42,7 @@ const INITIAL_SESSIONS: ChatSession[] = [
       {
         id: toValidUUID("msg-2"),
         role: "model",
-        text: "I am **Kelvis**, an intelligent AI assistant! Here is what I can do:\n\n" +
+        text: "I am **Kelvis**, an intelligent AI assistant powered strictly by **openai/gpt-oss-120b** and **openai/gpt-oss-20b**!\n\n" +
           "- ==Live Code Execution & Previews==: Write HTML, JavaScript, CSS, or TypeScript code blocks and click **Run Preview** to test them live!\n" +
           "- ==Live Binance Crypto Market Data==: Stream live candlestick charts, EMA, RSI, MACD, and Bollinger Bands with zero API keys required!\n" +
           "- ==File Analysis & Uploads==: Upload documents, code files, or images for deep analysis.\n" +
@@ -58,7 +58,7 @@ const INITIAL_SESSIONS: ChatSession[] = [
 
 const DEFAULT_SETTINGS: AppSettings = {
   systemInstruction:
-    "You are Kelvis, a smart, helpful, and creative AI assistant. You identify strictly as Kelvis. Only write code or generate code blocks when the user explicitly asks for code, programming, or scripts. For general questions, explanations, discussions, or creative writing, respond naturally in clear text without unsolicited code blocks.",
+    "You are Kelvis, a smart, helpful, and creative AI assistant running strictly on model openai/gpt-oss-120b or openai/gpt-oss-20b. When coding an application, first explain your next step clearly (e.g., 'I will start with the web structure...'), then use activefile progress tags and complete code blocks.",
   searchGrounding: true,
   autoVoiceRead: false,
   darkTheme: false,
@@ -84,7 +84,7 @@ export default function App() {
 
   const [prompt, setPrompt] = useState<string>("");
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>("gpt-oss-120b");
+  const [selectedModel, setSelectedModel] = useState<string>("openai/gpt-oss-120b");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isCodeMode, setIsCodeMode] = useState<boolean>(false);
 
@@ -100,8 +100,6 @@ export default function App() {
   const [isBoukOpen, setIsBoukOpen] = useState<boolean>(false);
   const [isQuizOpen, setIsQuizOpen] = useState<boolean>(false);
   const [activeQuiz, setActiveQuiz] = useState<QuizPayload | null>(null);
-  const [isGameOpen, setIsGameOpen] = useState<boolean>(false);
-  const [activeGame, setActiveGame] = useState<GameType>("checkers");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showOptionsMenu, setShowOptionsMenu] = useState<boolean>(false);
 
@@ -312,12 +310,23 @@ export default function App() {
   };
 
   // Send Message Handler
-  const handleSendMessage = async (textOverride?: string) => {
+  const handleSendMessage = async (textOverride?: string, bypassAutoQuiz = false) => {
     const rawPrompt = typeof textOverride === "string" ? textOverride : prompt;
     if (!rawPrompt.trim() && attachedFiles.length === 0) return;
 
     const currentPrompt = rawPrompt.trim();
     const currentFiles = [...attachedFiles];
+
+    // If user sends a prompt like "code a chatting platform" or "build a ...",
+    // and didn't already come from quiz submission, auto-popup the interactive blueprint quiz!
+    if (!bypassAutoQuiz && !textOverride && isCodingPrompt(currentPrompt)) {
+      const codingQuiz = generateCodingSpecificationQuiz(currentPrompt);
+      setActiveQuiz(codingQuiz);
+      setIsQuizOpen(true);
+      // Auto-set code mode
+      setIsCodeMode(true);
+      return;
+    }
 
     if (typeof textOverride !== "string") {
       setPrompt("");
@@ -358,8 +367,8 @@ export default function App() {
     saveSupabaseSession(updatedSession);
     saveSupabaseMessage(activeSessionId, userMsg);
 
-    // Use selected model, or gpt-oss-120b if Code Mode is explicitly activated
-    const modelToUse = isCodeMode ? "gpt-oss-120b" : selectedModel;
+    // Use selected model, or openai/gpt-oss-120b
+    const modelToUse = isCodeMode ? "openai/gpt-oss-120b" : selectedModel;
 
     setIsLoading(true);
 
@@ -436,7 +445,6 @@ export default function App() {
                 const parsed = JSON.parse(jsonStr);
                 if (parsed.token) {
                   accumulatedText += parsed.token;
-                  // Incrementally update UI with streamed tokens
                   setSessions((prev) =>
                     prev.map((s) =>
                       s.id === activeSessionId
@@ -648,7 +656,7 @@ export default function App() {
                 How can I help you today?
               </h2>
               <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed max-w-sm">
-                Ask questions, generate and preview code, solve problems, analyze documents, or launch tools from the Apps menu.
+                Ask questions, build and preview applications, solve problems, analyze documents, or launch tools from the Apps menu.
               </p>
             </div>
           ) : (
@@ -662,10 +670,6 @@ export default function App() {
                 onOpenQuiz={(quiz) => {
                   setActiveQuiz(quiz);
                   setIsQuizOpen(true);
-                }}
-                onOpenGame={(game) => {
-                  setActiveGame(game);
-                  setIsGameOpen(true);
                 }}
                 isStreaming={
                   isLoading &&
@@ -748,7 +752,7 @@ export default function App() {
             const nextMode = !isCodeMode;
             setIsCodeMode(nextMode);
             if (nextMode) {
-              setSelectedModel("gpt-oss-120b");
+              setSelectedModel("openai/gpt-oss-120b");
             }
           }}
         />
@@ -805,7 +809,7 @@ export default function App() {
         }}
       />
 
-      {/* Live Full Voice Call Modal */}
+      {/* Live Full Gemini Voice Call Modal */}
       <VoiceCallModal
         isOpen={isVoiceCallActive}
         onClose={() => setIsVoiceCallActive(false)}
@@ -822,15 +826,18 @@ export default function App() {
         onSpeak={(txt) => speakText(txt)}
         isSpeaking={currentlySpeakingId !== null}
         onStopSpeaking={stopSpeaking}
+        conversationHistory={activeSession?.messages || []}
+        systemInstruction={settings.systemInstruction}
       />
 
-      {/* Claude-Style Slide-Up Floating Quick Quiz Drawer */}
+      {/* Interactive Blueprint & Practice Quiz Drawer */}
       <QuickQuizDrawer
         isOpen={isQuizOpen}
         quiz={activeQuiz}
         onClose={() => setIsQuizOpen(false)}
         onSubmitQuiz={(submissionText) => {
-          handleSendMessage(submissionText);
+          setIsQuizOpen(false);
+          handleSendMessage(submissionText, true);
         }}
       />
 
@@ -841,17 +848,6 @@ export default function App() {
         onLaunchBinance={() => setIsBinanceModalOpen(true)}
         onLaunchBouk={() => setIsBoukOpen(true)}
         onLaunchSpotify={() => setIsSpotifyOpen(true)}
-        onLaunchGames={() => {
-          setActiveGame("checkers");
-          setIsGameOpen(true);
-        }}
-      />
-
-      {/* Kelvis AI Live Interactive Game Arena Modal */}
-      <GameArenaModal
-        isOpen={isGameOpen}
-        onClose={() => setIsGameOpen(false)}
-        initialGame={activeGame}
       />
     </div>
   );
