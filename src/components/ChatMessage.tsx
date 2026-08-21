@@ -412,7 +412,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           /* User Message: Clean bubble on the right */
           <div className="flex items-start max-w-[90%] sm:max-w-[80%] md:max-w-[75%] flex-row-reverse space-x-reverse space-x-2">
             <div className="flex flex-col min-w-0 items-end">
-              <div className="px-4 py-3 rounded-2xl bg-slate-900 text-white dark:bg-zinc-200 dark:text-zinc-900 rounded-tr-xs shadow-xs text-sm font-medium leading-relaxed select-text">
+              <div className="px-4 py-3 rounded-2xl bg-slate-900 text-white dark:bg-zinc-200 dark:text-zinc-900 rounded-tr-xs shadow-xs text-[15px] sm:text-[16px] font-medium leading-relaxed select-text">
                 {message.files && message.files.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mb-2 pb-2 border-b border-slate-700/30 dark:border-zinc-700">
                     {message.files.map((file, idx) => (
@@ -509,14 +509,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 />
               )}
 
-              {/* Direct Markdown Content */}
-              <div className="markdown-body text-slate-800 dark:text-zinc-100 text-sm sm:text-[15px] leading-relaxed select-text font-normal">
+              {/* Direct Markdown Content with Perplexity AI Typography */}
+              <div className="markdown-body text-slate-800 dark:text-zinc-100 text-[16px] sm:text-[17px] leading-[1.75] select-text font-normal">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
                     table({ children }) {
                       return (
-                        <div className="my-3 overflow-x-auto rounded-xl border border-slate-300 dark:border-zinc-700 shadow-xs bg-white/60 dark:bg-zinc-900/60">
+                        <div className="my-4 overflow-x-auto rounded-xl border border-slate-300 dark:border-zinc-700 shadow-xs bg-white/60 dark:bg-zinc-900/60">
                           <table className="w-full text-left border-collapse text-xs sm:text-sm">
                             {children}
                           </table>
@@ -542,14 +542,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                     },
                     th({ children }) {
                       return (
-                        <th className="px-3.5 py-2.5 font-semibold text-slate-900 dark:text-zinc-100 text-[11px] sm:text-xs uppercase tracking-wider">
+                        <th className="px-3.5 py-2.5 font-semibold text-slate-900 dark:text-zinc-100 text-xs sm:text-sm uppercase tracking-wider">
                           {children}
                         </th>
                       );
                     },
                     td({ children }) {
                       return (
-                        <td className="px-3.5 py-2 text-slate-700 dark:text-zinc-300 text-xs sm:text-sm">
+                        <td className="px-3.5 py-2.5 text-slate-700 dark:text-zinc-300 text-xs sm:text-sm">
                           {children}
                         </td>
                       );
@@ -697,7 +697,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
                       return (
                         <code
-                          className="px-1.5 py-0.5 rounded-md bg-slate-200/80 dark:bg-zinc-800 font-mono text-[12px] text-slate-900 dark:text-zinc-100 font-semibold"
+                          className="px-1.5 py-0.5 rounded-md bg-slate-200/80 dark:bg-zinc-800 font-mono text-[13px] sm:text-[14px] text-slate-900 dark:text-zinc-100 font-semibold"
                           {...props}
                         >
                           {children}
@@ -705,41 +705,41 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                       );
                     },
                     p({ children }) {
-                      return <p className="leading-relaxed my-2">{children}</p>;
+                      return <p className="leading-[1.75] my-2.5 text-[16px] sm:text-[17px] text-slate-800 dark:text-zinc-100">{children}</p>;
                     },
                     blockquote({ children }) {
                       return (
-                        <blockquote className="my-3 border-l-3 border-emerald-500/90 dark:border-emerald-400 pl-3.5 py-1 text-slate-700 dark:text-zinc-300 font-medium italic">
+                        <blockquote className="my-3.5 border-l-4 border-emerald-500/90 dark:border-emerald-400 pl-4 py-1.5 text-slate-700 dark:text-zinc-300 text-[16px] sm:text-[17px] font-medium italic bg-emerald-500/5 dark:bg-emerald-950/20 rounded-r-xl">
                           {children}
                         </blockquote>
                       );
                     },
                     h1({ children }) {
                       return (
-                        <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white mt-4 mb-2">
+                        <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white mt-5 mb-2.5">
                           {children}
                         </h1>
                       );
                     },
                     h2({ children }) {
                       return (
-                        <h2 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-400 mt-3.5 mb-1.5">
+                        <h2 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-emerald-400 mt-4 mb-2">
                           {children}
                         </h2>
                       );
                     },
                     h3({ children }) {
                       return (
-                        <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-zinc-100 mt-3 mb-1">
+                        <h3 className="text-base sm:text-lg font-bold text-slate-800 dark:text-zinc-100 mt-3.5 mb-1.5">
                           {children}
                         </h3>
                       );
                     },
                     ul({ children }) {
-                      return <ul className="list-disc list-inside my-2 space-y-1 text-slate-700 dark:text-zinc-300">{children}</ul>;
+                      return <ul className="list-disc list-inside my-2.5 space-y-1.5 text-slate-700 dark:text-zinc-300 text-[16px] sm:text-[17px] leading-[1.7]">{children}</ul>;
                     },
                     ol({ children }) {
-                      return <ol className="list-decimal list-inside my-2 space-y-1 text-slate-700 dark:text-zinc-300">{children}</ol>;
+                      return <ol className="list-decimal list-inside my-2.5 space-y-1.5 text-slate-700 dark:text-zinc-300 text-[16px] sm:text-[17px] leading-[1.7]">{children}</ol>;
                     },
                     hr() {
                       return <hr className="my-4 border-slate-200 dark:border-zinc-800" />;

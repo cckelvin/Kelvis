@@ -609,7 +609,16 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
     // Prepare messages for Groq completion
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
 
-    const defaultStructuredSystemInstruction = `You are Kelvis, an ultra-smart, creative, and highly capable AI assistant running strictly on model openai/gpt-oss-120b or openai/gpt-oss-20b.
+    const defaultStructuredSystemInstruction = `You are Kelvis, an ultra-intelligent, creative, and world-class AI researcher and software architect powered by Groq's high-speed reasoning models (openai/gpt-oss-120b and openai/gpt-oss-20b).
+
+### 🧠 COGNITIVE REASONING & RESPONSE EXCELLENCE:
+1. **Perplexity-Grade Clarity & Depth**: Deliver clear, rigorous, well-structured, and insightful answers. Use crisp headings, executive summaries, tabular comparisons, bulleted findings, and concrete takeaways.
+2. **Deep File & Code Analysis Engine**:
+   When files or code are provided, provide an exhaustive, high-intelligence analysis:
+   - **Executive Summary**: Core purpose, schema, data scale, or code architecture.
+   - **Key Findings & Data Insights**: Statistical metrics, distributions, key functions, dependencies, or key findings.
+   - **Deep Technical / Quality Inspection**: Detect bugs, data anomalies, missing records, syntax issues, security vulnerabilities, or performance bottlenecks.
+   - **Actionable Next Steps & Solutions**: Provide exact fixes, optimized code snippets, or analytical conclusions.
 
 ### 🌟 4-PHASE DEVELOPMENT & CODING WORKFLOW (CRITICAL):
 When the user asks to code, develop, or build any website, platform, application, or system (e.g. "build a sales website", "code a chatting platform", "build a crypto dashboard", etc.):
@@ -689,22 +698,34 @@ When general data charts are requested, format using a \`\`\`chart block with va
             file.mimeType?.includes("csv") ||
             file.mimeType?.includes("javascript") ||
             file.mimeType?.includes("typescript") ||
-            file.name?.match(/\.(csv|json|txt|md|js|ts|jsx|tsx|html|css|py|sql|log|xml|yaml|yml)$/i)
+            file.mimeType?.includes("pdf") ||
+            file.name?.match(/\.(csv|json|txt|md|js|ts|jsx|tsx|html|css|py|sql|log|xml|yaml|yml|sh|env|pdf|doc|docx)$/i)
           ) {
             try {
               const base64Data = file.data.includes(",") ? file.data.split(",")[1] : file.data;
-              const decodedText = Buffer.from(base64Data, "base64").toString("utf-8");
+              const rawBuffer = Buffer.from(base64Data, "base64");
+              const decodedText = rawBuffer.toString("utf-8");
+
               if (file.name?.endsWith(".csv") || file.mimeType?.includes("csv")) {
                 const rows = decodedText.split("\n").filter((r) => r.trim().length > 0);
-                fileContext += `\n[CSV Data (${rows.length} rows)]:\n\`\`\`csv\n${decodedText.slice(0, 15000)}\n\`\`\`\n`;
+                fileContext += `\n[CSV Data Table (${rows.length} rows)]:\n\`\`\`csv\n${decodedText.slice(0, 30000)}\n\`\`\`\n`;
+              } else if (file.name?.endsWith(".json") || file.mimeType?.includes("json")) {
+                fileContext += `\n[JSON Data Structure]:\n\`\`\`json\n${decodedText.slice(0, 30000)}\n\`\`\`\n`;
+              } else if (file.name?.match(/\.(js|ts|tsx|jsx|py|html|css|sql|sh)$/i)) {
+                const ext = file.name.split(".").pop() || "code";
+                fileContext += `\n[Source Code - ${file.name}]:\n\`\`\`${ext}\n${decodedText.slice(0, 30000)}\n\`\`\`\n`;
+              } else if (file.mimeType?.includes("pdf") || file.name?.endsWith(".pdf")) {
+                // Extract clean readable ASCII text segments from PDF stream
+                const asciiText = decodedText.replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{2,}/g, " ").trim();
+                fileContext += `\n[Extracted PDF Document Text Content]:\n\`\`\`text\n${(asciiText || decodedText).slice(0, 30000)}\n\`\`\`\n`;
               } else {
-                fileContext += `\n\`\`\`\n${decodedText.slice(0, 15000)}\n\`\`\`\n`;
+                fileContext += `\n[Document Content]:\n\`\`\`\n${decodedText.slice(0, 30000)}\n\`\`\`\n`;
               }
             } catch (decErr) {
-              fileContext += `[Binary data encoded: ${file.data.slice(0, 200)}...]`;
+              fileContext += `[Binary attachment processed: ${file.name}]`;
             }
           } else if (file.mimeType?.startsWith("image/")) {
-            fileContext += `\n[Image attachment provided for visual analysis: ${file.name}]`;
+            fileContext += `\n[Image attachment provided for visual analysis: ${file.name} (${Math.round((file.size || 0) / 1024)} KB)]`;
           }
         }
       }

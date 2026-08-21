@@ -251,27 +251,101 @@ export default function App() {
     setIsListening(true);
   };
 
-  // Text-To-Speech Readout
-  const speakText = (text: string, msgId?: string) => {
-    if (!("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
+  // Audio player ref for Neural TTS audio playback
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.0;
+  // Text-To-Speech Readout with Neural Voice & Browser Fallback
+  const speakText = async (rawText: string, msgId?: string) => {
+    // 1. Clean markdown, code blocks, activefile tags, and special symbols for natural speech
+    const cleanSpoken = rawText
+      .replace(/<activefile[\s\S]*?\/>/g, "")
+      .replace(/```[\s\S]*?```/g, " Code block omitted for speech. ")
+      .replace(/<[^>]+>/g, "")
+      .replace(/[*_#`~[\]()]/g, "")
+      .replace(/==(.*?)==/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!cleanSpoken) return;
+
+    // Cancel any active speech or audio playback
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
 
     if (msgId) setCurrentlySpeakingId(msgId);
 
-    utterance.onend = () => {
-      setCurrentlySpeakingId(null);
-    };
-    utterance.onerror = () => {
-      setCurrentlySpeakingId(null);
-    };
+    // Try Neural TTS from backend first
+    try {
+      const res = await fetch("/api/voice/gemini-tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: cleanSpoken.slice(0, 1000),
+          voiceName: "Kore",
+          customApiKey: settings.customGoogleApiKey,
+        }),
+      });
 
-    window.speechSynthesis.speak(utterance);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.audioBase64) {
+          const audioUrl = `data:${data.mimeType || "audio/wav"};base64,${data.audioBase64}`;
+          const audio = new Audio(audioUrl);
+          activeAudioRef.current = audio;
+          audio.onended = () => {
+            setCurrentlySpeakingId(null);
+            activeAudioRef.current = null;
+          };
+          audio.onerror = () => {
+            setCurrentlySpeakingId(null);
+            activeAudioRef.current = null;
+          };
+          await audio.play();
+          return;
+        }
+      }
+    } catch (e) {
+      // Continue to Web Speech API fallback
+    }
+
+    // Fallback: Browser Web Speech API
+    if ("speechSynthesis" in window) {
+      const utterance = new SpeechSynthesisUtterance(cleanSpoken);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+
+      // Prefer natural English voices if available
+      const voices = window.speechSynthesis.getVoices();
+      const naturalVoice = voices.find(
+        (v) => v.lang.startsWith("en") && (v.name.includes("Natural") || v.name.includes("Google") || v.name.includes("Samantha"))
+      );
+      if (naturalVoice) {
+        utterance.voice = naturalVoice;
+      }
+
+      utterance.onend = () => {
+        setCurrentlySpeakingId(null);
+      };
+      utterance.onerror = () => {
+        setCurrentlySpeakingId(null);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setCurrentlySpeakingId(null);
+    }
   };
 
   const stopSpeaking = () => {
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
