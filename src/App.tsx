@@ -384,7 +384,12 @@ export default function App() {
   };
 
   // Send Message Handler
-  const handleSendMessage = async (textOverride?: string, bypassAutoQuiz = false) => {
+  const handleSendMessage = async (
+    textOverride?: string,
+    options?: { bypassAutoQuiz?: boolean; isBackgroundSubmission?: boolean; displayUserText?: string } | boolean
+  ) => {
+    const opts = typeof options === "boolean" ? { bypassAutoQuiz: options } : (options || {});
+    const isBackground = opts.isBackgroundSubmission || false;
     const rawPrompt = typeof textOverride === "string" ? textOverride : prompt;
     if (!rawPrompt.trim() && attachedFiles.length === 0) return;
 
@@ -393,11 +398,39 @@ export default function App() {
 
     // If user sends a prompt like "code a chatting platform" or "build a ...",
     // and didn't already come from quiz submission, auto-popup the interactive blueprint quiz!
-    if (!bypassAutoQuiz && !textOverride && isCodingPrompt(currentPrompt)) {
+    if (!opts.bypassAutoQuiz && !textOverride && isCodingPrompt(currentPrompt)) {
       const codingQuiz = generateCodingSpecificationQuiz(currentPrompt);
       setActiveQuiz(codingQuiz);
       setIsQuizOpen(true);
-      // Auto-set code mode
+      
+      // Pre-insert user prompt into chat so the user query is clearly visible in the conversation
+      const userMsg: Message = {
+        id: toValidUUID(`msg-user-${Date.now()}`),
+        role: "user",
+        text: currentPrompt,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        files: currentFiles.map((f) => ({ name: f.name, mimeType: f.mimeType })),
+      };
+      const sessionTitle = !activeSession || activeSession.messages.length === 0
+        ? currentPrompt.slice(0, 24) || "New Enquiry"
+        : activeSession.title;
+      const updatedSession: ChatSession = {
+        ...(activeSession || {
+          id: activeSessionId,
+          model: selectedModel,
+          updatedAt: "Just now",
+          messages: [],
+        }),
+        title: sessionTitle,
+        updatedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        messages: [...(activeSession?.messages || []), userMsg],
+      };
+      setSessions((prev) => prev.map((s) => (s.id === activeSessionId ? updatedSession : s)));
+      saveSupabaseSession(updatedSession);
+      saveSupabaseMessage(activeSessionId, userMsg);
+
+      setPrompt("");
+      setAttachedFiles([]);
       setIsCodeMode(true);
       return;
     }
@@ -407,39 +440,41 @@ export default function App() {
     }
     setAttachedFiles([]);
 
-    const userMsg: Message = {
-      id: toValidUUID(`msg-user-${Date.now()}`),
-      role: "user",
-      text: currentPrompt,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      files: currentFiles.map((f) => ({ name: f.name, mimeType: f.mimeType })),
-    };
+    if (!isBackground) {
+      const userMsg: Message = {
+        id: toValidUUID(`msg-user-${Date.now()}`),
+        role: "user",
+        text: opts.displayUserText || currentPrompt,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        files: currentFiles.map((f) => ({ name: f.name, mimeType: f.mimeType })),
+      };
 
-    // Update session title if first message
-    const isFirstMsg = !activeSession || activeSession.messages.length === 0;
-    const sessionTitle = isFirstMsg
-      ? currentPrompt.slice(0, 24) || "New Enquiry"
-      : activeSession.title;
+      // Update session title if first message
+      const isFirstMsg = !activeSession || activeSession.messages.length === 0;
+      const sessionTitle = isFirstMsg
+        ? (opts.displayUserText || currentPrompt).slice(0, 24) || "New Enquiry"
+        : activeSession.title;
 
-    const updatedSession: ChatSession = {
-      ...(activeSession || {
-        id: activeSessionId,
-        model: selectedModel,
-        updatedAt: "Just now",
-        messages: [],
-      }),
-      title: sessionTitle,
-      updatedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      messages: [...(activeSession?.messages || []), userMsg],
-    };
+      const updatedSession: ChatSession = {
+        ...(activeSession || {
+          id: activeSessionId,
+          model: selectedModel,
+          updatedAt: "Just now",
+          messages: [],
+        }),
+        title: sessionTitle,
+        updatedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        messages: [...(activeSession?.messages || []), userMsg],
+      };
 
-    setSessions((prev) =>
-      prev.map((s) => (s.id === activeSessionId ? updatedSession : s))
-    );
+      setSessions((prev) =>
+        prev.map((s) => (s.id === activeSessionId ? updatedSession : s))
+      );
 
-    // Persist to Supabase
-    saveSupabaseSession(updatedSession);
-    saveSupabaseMessage(activeSessionId, userMsg);
+      // Persist to Supabase
+      saveSupabaseSession(updatedSession);
+      saveSupabaseMessage(activeSessionId, userMsg);
+    }
 
     // Use selected model, or openai/gpt-oss-120b
     const modelToUse = isCodeMode ? "openai/gpt-oss-120b" : selectedModel;
@@ -911,7 +946,10 @@ export default function App() {
         onClose={() => setIsQuizOpen(false)}
         onSubmitQuiz={(submissionText) => {
           setIsQuizOpen(false);
-          handleSendMessage(submissionText, true);
+          handleSendMessage(submissionText, {
+            bypassAutoQuiz: true,
+            isBackgroundSubmission: true,
+          });
         }}
       />
 

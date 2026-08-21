@@ -42,18 +42,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAuth,
   userEmail,
 }) => {
-  if (!isOpen) return null;
-
   return (
-    <>
-      {/* Backdrop overlay for mobile */}
-      <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 lg:hidden"
-        onClick={onClose}
-      />
-
-      {/* Sidebar Panel */}
-      <aside className="fixed lg:static inset-y-0 left-0 z-50 w-80 bg-slate-100 dark:bg-zinc-900 border-r border-slate-300 dark:border-zinc-800 flex flex-col shadow-xl lg:shadow-none transition-all duration-200 select-none">
+    <aside
+      className={`relative h-full bg-slate-100 dark:bg-zinc-900 border-r border-slate-300 dark:border-zinc-800 flex flex-col shrink-0 transition-all duration-300 ease-in-out select-none overflow-hidden z-20 ${
+        isOpen
+          ? "w-72 sm:w-80 min-w-[18rem] sm:min-w-[20rem] opacity-100"
+          : "w-0 min-w-0 border-r-0 opacity-0 pointer-events-none"
+      }`}
+    >
+      <div className="w-72 sm:w-80 h-full flex flex-col">
         {/* Top Header of Sidebar */}
         <div className="p-3 border-b border-slate-300 dark:border-zinc-800 flex items-center justify-between">
           {/* Icons: Settings, Bell, Apps (Box), Globe, Auth User */}
@@ -75,10 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Apps Launcher Button right after Notifications */}
             <button
               type="button"
-              onClick={() => {
-                onOpenApps();
-                if (window.innerWidth < 1024) onClose();
-              }}
+              onClick={onOpenApps}
               className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:text-amber-500 dark:hover:text-amber-400 transition-colors cursor-pointer"
               title="Apps (Binance, Bouk, Spotify, Wave Store)"
             >
@@ -103,13 +97,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
 
-          {/* "+ NEW CHAT" pill button */}
+          {/* "+ NEW CHAT" pill button and close */}
           <div className="flex items-center space-x-1">
             <button
-              onClick={() => {
-                onNewChat();
-                if (window.innerWidth < 1024) onClose();
-              }}
+              onClick={onNewChat}
               className="px-3 py-1.5 rounded-full border border-slate-800 dark:border-zinc-300 bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-semibold flex items-center space-x-1 hover:opacity-90 transition-opacity shadow-xs"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -117,7 +108,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
             <button
               onClick={onClose}
-              className="p-1 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200 lg:hidden ml-1"
+              className="p-1 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200 ml-1"
+              title="Collapse Sidebar"
             >
               <X className="w-5 h-5" />
             </button>
@@ -142,10 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               return (
                 <div
                   key={session.id}
-                  onClick={() => {
-                    onSelectSession(session.id);
-                    if (window.innerWidth < 1024) onClose();
-                  }}
+                  onClick={() => onSelectSession(session.id)}
                   className={`group relative flex items-start justify-between p-2.5 rounded-xl cursor-pointer border transition-all ${
                     isActive
                       ? "bg-slate-200/90 dark:bg-zinc-800/90 border-slate-400 dark:border-zinc-700 shadow-xs"
@@ -191,8 +180,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>{userEmail ? "Account" : "Sign In"}</span>
           </button>
         </div>
-      </aside>
-    </>
+      </div>
+    </aside>
   );
 };
 

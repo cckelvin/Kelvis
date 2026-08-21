@@ -59,14 +59,20 @@ function pcmToWav(pcmData: Buffer, sampleRate = 24000, numChannels = 1, bitsPerS
   return Buffer.concat([header, pcmData]);
 }
 
-// Strictly enforce openai/gpt-oss-120b and openai/gpt-oss-20b
+// Normalize Groq model names including vision/image mixtral-8x7b and llama3-8b
 function normalizeGroqModelName(requestedModel?: string): string {
   if (!requestedModel) return "openai/gpt-oss-120b";
   const m = String(requestedModel).toLowerCase();
+  if (m.includes("mixtral") || m.includes("8x7b")) {
+    return "mixtral-8x7b-32768";
+  }
+  if (m.includes("llama3-8b") || m.includes("llama-3-8b") || m.includes("llama-3.1-8b") || m.includes("llama3")) {
+    return "llama-3.1-8b-instant";
+  }
   if (m.includes("20b") || m.includes("gpt-oss-20b") || m.includes("oss-20b")) {
     return "openai/gpt-oss-20b";
   }
-  return "openai/gpt-oss-120b";
+  return requestedModel.replace(/^groq\//, "");
 }
 
 async function fetchLiveWebResults(

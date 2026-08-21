@@ -994,27 +994,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                     <Volume2 className="w-3.5 h-3.5" />
                   )}
                 </button>
-
-                {/* Quick Practice Test Trigger */}
-                {onOpenQuiz && message.text && message.text.length > 50 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (extractedQuiz) {
-                        onOpenQuiz(extractedQuiz);
-                      } else {
-                        const firstLine = message.text.split("\n")[0].replace(/[#*`]/g, "").trim();
-                        const dynamicQuiz = createTopicQuickQuiz(firstLine || "Knowledge Check", message.text);
-                        onOpenQuiz(dynamicQuiz);
-                      }
-                    }}
-                    className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25 border border-amber-500/30 transition-colors cursor-pointer ml-1"
-                    title="Take a quick interactive quiz on this topic"
-                  >
-                    <Zap className="w-3 h-3 fill-current text-amber-500" />
-                    <span>Quick Test</span>
-                  </button>
-                )}
               </div>
             </div>
           </div>

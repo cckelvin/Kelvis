@@ -39,6 +39,8 @@ interface InputToolbarProps {
 const AVAILABLE_MODELS = [
   { id: "openai/gpt-oss-120b", name: "openai/gpt-oss-120b", desc: "Flagship 120B Open Architecture Model" },
   { id: "openai/gpt-oss-20b", name: "openai/gpt-oss-20b", desc: "High-Speed 20B Reasoning Model" },
+  { id: "groq/mixtral-8x7b-32768", name: "groq/mixtral-8x7b-32768", desc: "Mixtral 8x7B (Vision & Image Prompting)" },
+  { id: "groq/llama3-8b", name: "groq/llama3-8b", desc: "Llama 3 8B (Fast Free File Analysis)" },
 ];
 
 export const InputToolbar: React.FC<InputToolbarProps> = ({
