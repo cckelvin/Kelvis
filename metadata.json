@@ -1,6 +1,6 @@
 {
   "name": "Kelvis AI Assistant",
-  "description": "An AI chat application with live Binance WebSocket market data charts, local technical indicators (EMA, RSI, MACD, Bollinger Bands), speech synthesis, live code execution previews, and .Bouk open-access books for study & AI guidance (WAEC/NECO 2000-2026, Geography, Tech, Business).",
+  "description": "An AI chat application with a centralized Codebase workspace repository for multi-file folder management, cross-chat surgical code editing, live code execution, Binance cryptocurrency charts, speech synthesis, and .Bouk open-access educational library.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -14,6 +14,8 @@ import { BinanceMarketModal } from "./components/BinanceMarketModal";
 import { BoukModal } from "./components/BoukModal";
 import { AppsModal } from "./components/AppsModal";
 import { QuickQuizDrawer } from "./components/QuickQuizDrawer";
+import { CodebaseModal } from "./components/CodebaseModal";
+import { CodePreviewModal, ProjectFile } from "./components/CodePreviewModal";
 import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack, QuizPayload } from "./types";
 import { Trash2, Download, RotateCcw, Sparkles } from "lucide-react";
 import {
@@ -24,7 +26,12 @@ import {
   toValidUUID,
   subscribeToSupabaseChats,
 } from "./lib/supabaseSync";
-import { isCodingPrompt, generateCodingSpecificationQuiz } from "./utils/quizParser";
+import { isLargeProjectCodingPrompt, generateCodingSpecificationQuiz } from "./utils/quizParser";
+import {
+  loadCodebase,
+  syncFilesFromAiResponse,
+  getCodebaseContextForPrompt,
+} from "./utils/codebaseStore";
 
 const INITIAL_SESSIONS: ChatSession[] = [
   {
@@ -98,6 +105,16 @@ export default function App() {
   const [isSpotifyOpen, setIsSpotifyOpen] = useState<boolean>(false);
   const [isBinanceModalOpen, setIsBinanceModalOpen] = useState<boolean>(false);
   const [isBoukOpen, setIsBoukOpen] = useState<boolean>(false);
+  const [isCodebaseOpen, setIsCodebaseOpen] = useState<boolean>(false);
+  const [codebaseFiles, setCodebaseFiles] = useState(() => loadCodebase());
+  const [previewModalData, setPreviewModalData] = useState<{
+    isOpen: boolean;
+    files: { name: string; code: string; language: string }[];
+    initialFile?: string;
+  }>({
+    isOpen: false,
+    files: [],
+  });
   const [isQuizOpen, setIsQuizOpen] = useState<boolean>(false);
   const [activeQuiz, setActiveQuiz] = useState<QuizPayload | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -105,6 +122,11 @@ export default function App() {
 
   useEffect(() => {
     (window as any).openSqlModal = () => setIsSqlModalOpen(true);
+    const handleCodebaseSync = () => {
+      setCodebaseFiles(loadCodebase());
+    };
+    window.addEventListener("kelvis_codebase_updated", handleCodebaseSync);
+    return () => window.removeEventListener("kelvis_codebase_updated", handleCodebaseSync);
   }, []);
 
   // Feature Toggles
@@ -396,9 +418,9 @@ export default function App() {
     const currentPrompt = rawPrompt.trim();
     const currentFiles = [...attachedFiles];
 
-    // If user sends a prompt like "code a chatting platform" or "build a ...",
-    // and didn't already come from quiz submission, auto-popup the interactive blueprint quiz!
-    if (!opts.bypassAutoQuiz && !textOverride && isCodingPrompt(currentPrompt)) {
+    // If user sends a prompt asking for large project architecture/quiz,
+    // auto-popup the interactive blueprint quiz. For standard coding (landing page, scripts, edits), proceed directly!
+    if (!opts.bypassAutoQuiz && !textOverride && isLargeProjectCodingPrompt(currentPrompt)) {
       const codingQuiz = generateCodingSpecificationQuiz(currentPrompt);
       setActiveQuiz(codingQuiz);
       setIsQuizOpen(true);
@@ -518,6 +540,7 @@ export default function App() {
           googleApiKey: settings.customGoogleApiKey,
           googleCx: settings.customGoogleCx,
           groqApiKey: settings.customGroqApiKey,
+          codebaseContext: getCodebaseContextForPrompt(),
           stream: true,
         }),
       });
@@ -614,6 +637,20 @@ export default function App() {
       // Save finalized AI message to Supabase
       saveSupabaseMessage(activeSessionId, finalizedAiMsg);
 
+      // Auto-sync files from AI response directly into shared Codebase Workspace
+      try {
+        const synced = syncFilesFromAiResponse(
+          accumulatedText,
+          activeSessionId,
+          activeSession?.title
+        );
+        if (synced.length > 0) {
+          setCodebaseFiles(loadCodebase());
+        }
+      } catch (cbErr) {
+        console.warn("Failed to sync files to codebase:", cbErr);
+      }
+
       // Auto Voice Readout if enabled or Voice Call active
       if (settings.autoVoiceRead || isVoiceCallActive) {
         speakText(finalizedAiMsg.text, finalizedAiMsg.id);
@@ -680,7 +717,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-200 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 font-sans">
+    <div className="flex h-screen w-screen overflow-hidden bg-white dark:bg-black text-black dark:text-white font-sans">
       {/* Sidebar matching hand drawn lower panel */}
       <Sidebar
         isOpen={isSidebarOpen}
@@ -694,11 +731,13 @@ export default function App() {
         onOpenNotifications={() => setIsNotificationsOpen(true)}
         onOpenApps={() => setIsAppsModalOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenCodebase={() => setIsCodebaseOpen(true)}
+        codebaseFileCount={codebaseFiles.length}
         userEmail={userEmail}
       />
 
       {/* Main Window Container matching sketch top rectangle */}
-      <main className="flex-1 flex flex-col h-full min-w-0 bg-slate-50 dark:bg-zinc-900 shadow-inner relative">
+      <main className="flex-1 flex flex-col h-full min-w-0 bg-white dark:bg-black relative">
         {/* Header matching top sketch header */}
         <Header
           chatTitle={activeSession?.title || "NEW CHAT"}
@@ -716,12 +755,12 @@ export default function App() {
               className="fixed inset-0 z-30"
               onClick={() => setShowOptionsMenu(false)}
             />
-            <div className="absolute right-4 top-14 w-52 bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-2xl shadow-xl z-40 py-2 text-xs select-none">
+            <div className="absolute right-4 top-14 w-56 bg-white dark:bg-black border border-black/30 dark:border-white/30 rounded-2xl shadow-xl z-40 py-2 text-xs select-none">
               <button
                 onClick={handleClearMessages}
-                className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-zinc-700 flex items-center space-x-2 text-slate-700 dark:text-zinc-200"
+                className="w-full text-left px-4 py-2 hover:bg-black/5 dark:hover:bg-white/10 flex items-center space-x-2 text-black dark:text-white font-bold"
               >
-                <RotateCcw className="w-4 h-4 text-slate-500" />
+                <RotateCcw className="w-4 h-4 text-black dark:text-white" />
                 <span>Clear Conversation</span>
               </button>
               <button
@@ -737,15 +776,15 @@ export default function App() {
                   downloadAnchor.remove();
                   setShowOptionsMenu(false);
                 }}
-                className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-zinc-700 flex items-center space-x-2 text-slate-700 dark:text-zinc-200"
+                className="w-full text-left px-4 py-2 hover:bg-black/5 dark:hover:bg-white/10 flex items-center space-x-2 text-black dark:text-white font-bold"
               >
-                <Download className="w-4 h-4 text-slate-500" />
+                <Download className="w-4 h-4 text-black dark:text-white" />
                 <span>Export Chat Data</span>
               </button>
-              <div className="my-1 border-t border-slate-200 dark:border-zinc-700" />
+              <div className="my-1 border-t border-black/15 dark:border-white/15" />
               <button
                 onClick={() => handleDeleteSession(activeSessionId)}
-                className="w-full text-left px-4 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center space-x-2"
+                className="w-full text-left px-4 py-2 hover:bg-black/10 dark:hover:bg-white/15 text-black dark:text-white flex items-center space-x-2 font-bold"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Delete Chat</span>
@@ -757,14 +796,14 @@ export default function App() {
         {/* Chat Messages Scroll Container */}
         <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3">
           {!activeSession || activeSession.messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400 dark:text-zinc-500 select-none max-w-md mx-auto">
-              <div className="w-14 h-14 rounded-2xl border border-slate-300 dark:border-zinc-700 flex items-center justify-center mb-4 bg-white dark:bg-zinc-800 shadow-xs">
-                <Sparkles className="w-7 h-7 text-amber-500" />
+            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-black/60 dark:text-white/60 select-none max-w-md mx-auto">
+              <div className="w-14 h-14 rounded-2xl border border-black/20 dark:border-white/20 flex items-center justify-center mb-4 bg-black text-white dark:bg-white dark:text-black shadow-xs">
+                <Sparkles className="w-7 h-7 text-white dark:text-black" />
               </div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-zinc-100 mb-1.5">
+              <h2 className="text-xl sm:text-2xl font-black text-black dark:text-white mb-2">
                 How can I help you today?
               </h2>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed max-w-sm">
+              <p className="text-sm text-black/70 dark:text-white/70 leading-relaxed max-w-sm font-semibold">
                 Ask questions, build and preview applications, solve problems, analyze documents, or launch tools from the Apps menu.
               </p>
             </div>
@@ -789,7 +828,7 @@ export default function App() {
             ))
           )}
 
-          {/* Typing Indicator with Smooth Gradual Fade-Out */}
+          {/* Typing Indicator in Strict Black & White */}
           <AnimatePresence mode="wait">
             {isLoading &&
               (!activeSession?.messages?.length ||
@@ -805,30 +844,30 @@ export default function App() {
                     scale: 0.98,
                     transition: { duration: 0.5, ease: "easeInOut" },
                   }}
-                  className="flex items-center space-x-3 px-3 py-2 text-slate-500 dark:text-zinc-400 select-none"
+                  className="flex items-center space-x-3 px-3 py-2 text-black/70 dark:text-white/70 select-none"
                 >
-                  <div className="w-8 h-8 rounded-full bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center shrink-0 shadow-xs border border-slate-700 dark:border-zinc-300">
-                    <Sparkles className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
+                  <div className="w-8 h-8 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center shrink-0 shadow-xs border border-black dark:border-white">
+                    <Sparkles className="w-4 h-4 text-white dark:text-black" />
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs font-medium text-slate-600 dark:text-zinc-300">
+                    <span className="text-xs font-bold text-black dark:text-white">
                       Kelvis is thinking
                     </span>
                     <div className="flex items-center space-x-1">
                       <motion.span
                         animate={{ opacity: [0.3, 1, 0.3], scale: [0.85, 1.15, 0.85] }}
                         transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", delay: 0 }}
-                        className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+                        className="w-1.5 h-1.5 rounded-full bg-black dark:bg-white"
                       />
                       <motion.span
                         animate={{ opacity: [0.3, 1, 0.3], scale: [0.85, 1.15, 0.85] }}
                         transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
-                        className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+                        className="w-1.5 h-1.5 rounded-full bg-black dark:bg-white"
                       />
                       <motion.span
                         animate={{ opacity: [0.3, 1, 0.3], scale: [0.85, 1.15, 0.85] }}
                         transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
-                        className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+                        className="w-1.5 h-1.5 rounded-full bg-black dark:bg-white"
                       />
                     </div>
                   </div>
@@ -961,6 +1000,38 @@ export default function App() {
         onLaunchBouk={() => setIsBoukOpen(true)}
         onLaunchSpotify={() => setIsSpotifyOpen(true)}
       />
+
+      {/* Codebase & Central Project Files Workspace Modal */}
+      <CodebaseModal
+        isOpen={isCodebaseOpen}
+        onClose={() => setIsCodebaseOpen(false)}
+        onOpenPreview={(files, initialFile) => {
+          setPreviewModalData({
+            isOpen: true,
+            files: files.map((f) => ({
+              name: f.name,
+              code: f.code,
+              language: f.language,
+            })),
+            initialFile,
+          });
+        }}
+      />
+
+      {/* Global Code Preview Modal for live app testing */}
+      {previewModalData.isOpen && (
+        <CodePreviewModal
+          isOpen={previewModalData.isOpen}
+          onClose={() =>
+            setPreviewModalData({
+              isOpen: false,
+              files: [],
+            })
+          }
+          files={previewModalData.files}
+          initialActiveFile={previewModalData.initialFile}
+        />
+      )}
     </div>
   );
 }

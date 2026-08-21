@@ -190,23 +190,17 @@ export const QuickQuizDrawer: React.FC<QuickQuizDrawerProps> = ({
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", damping: 28, stiffness: 260 }}
-          className="relative w-full max-w-4xl h-[88vh] max-h-[88vh] bg-white dark:bg-zinc-900 border-t border-x border-slate-300 dark:border-zinc-800 rounded-t-[32px] shadow-2xl flex flex-col overflow-hidden z-10"
+          className="relative w-full max-w-4xl h-[88vh] max-h-[88vh] bg-white dark:bg-black border-t border-x border-black/25 dark:border-white/25 rounded-t-[32px] shadow-2xl flex flex-col overflow-hidden z-10"
         >
           {/* Top Grab Handle & Header */}
-          <div className="pt-3 pb-2 px-6 border-b border-slate-200 dark:border-zinc-800/80 bg-slate-50/70 dark:bg-zinc-900/80 flex flex-col shrink-0">
+          <div className="pt-3 pb-2 px-6 border-b border-black/15 dark:border-white/15 bg-white dark:bg-black flex flex-col shrink-0">
             {/* Grab Handle */}
-            <div className="w-12 h-1.5 bg-slate-300 dark:bg-zinc-700 rounded-full mx-auto mb-2 cursor-grab active:cursor-grabbing opacity-80" />
+            <div className="w-12 h-1.5 bg-black/20 dark:bg-white/20 rounded-full mx-auto mb-2 cursor-grab active:cursor-grabbing" />
 
             <div className="flex items-center justify-between">
               {/* Subject / Topic Pill */}
               <div className="flex items-center space-x-2.5">
-                <div
-                  className={`p-1.5 rounded-xl text-white shadow-xs ${
-                    isCoding
-                      ? "bg-gradient-to-tr from-emerald-600 to-teal-600"
-                      : "bg-gradient-to-tr from-amber-500 to-orange-600"
-                  }`}
-                >
+                <div className="p-1.5 rounded-xl text-white dark:text-black bg-black dark:bg-white shadow-xs font-black">
                   {isCoding ? (
                     <Code className="w-4 h-4" />
                   ) : (
@@ -215,20 +209,14 @@ export const QuickQuizDrawer: React.FC<QuickQuizDrawerProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center space-x-2">
-                    <span
-                      className={`text-xs font-extrabold uppercase tracking-wider ${
-                        isCoding
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-amber-600 dark:text-amber-400"
-                      }`}
-                    >
+                    <span className="text-xs font-black uppercase tracking-wider text-black dark:text-white">
                       {isCoding ? "Interactive Blueprint Setup" : "Quick Practice Test"}
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-black/10 dark:bg-white/15 text-black dark:text-white">
                       {quiz.topic || "Knowledge Check"}
                     </span>
                   </div>
-                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-zinc-100 line-clamp-1">
+                  <h3 className="text-xs sm:text-sm font-bold text-black dark:text-white line-clamp-1">
                     {quiz.title || "Specification & Design Options"}
                   </h3>
                 </div>
@@ -240,7 +228,7 @@ export const QuickQuizDrawer: React.FC<QuickQuizDrawerProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSubmit(true)}
-                    className="hidden sm:flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-200/70 hover:bg-slate-300/80 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 transition-colors cursor-pointer"
+                    className="hidden sm:flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-black/10 hover:bg-black/20 dark:bg-white/15 dark:hover:bg-white/25 text-black dark:text-white transition-colors cursor-pointer border border-black/20 dark:border-white/20"
                     title="Skip questions and start coding immediately with standard defaults"
                   >
                     <FastForward className="w-3.5 h-3.5" />
@@ -249,16 +237,12 @@ export const QuickQuizDrawer: React.FC<QuickQuizDrawerProps> = ({
                 )}
 
                 <div className="hidden md:flex flex-col items-end text-xs">
-                  <span className="font-semibold text-slate-600 dark:text-zinc-300">
+                  <span className="font-bold text-black/70 dark:text-white/70">
                     {answeredCount} of {totalQuestions} completed
                   </span>
-                  <div className="w-24 h-1.5 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden mt-1">
+                  <div className="w-24 h-1.5 bg-black/10 dark:bg-white/20 rounded-full overflow-hidden mt-1">
                     <div
-                      className={`h-full transition-all duration-300 ${
-                        isCoding
-                          ? "bg-gradient-to-r from-emerald-500 to-teal-500"
-                          : "bg-gradient-to-r from-amber-500 to-emerald-500"
-                      }`}
+                      className="h-full bg-black dark:bg-white transition-all duration-300"
                       style={{ width: `${progressPercent}%` }}
                     />
                   </div>
@@ -267,7 +251,7 @@ export const QuickQuizDrawer: React.FC<QuickQuizDrawerProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-2 rounded-2xl bg-slate-100 dark:bg-zinc-800 text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-slate-200 dark:hover:bg-zinc-700 transition cursor-pointer"
+                  className="p-2 rounded-2xl bg-black/5 dark:bg-white/10 text-black/60 hover:text-black dark:text-white/60 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/20 transition cursor-pointer"
                   title="Close"
                 >
                   <X className="w-4 h-4" />
@@ -280,18 +264,12 @@ export const QuickQuizDrawer: React.FC<QuickQuizDrawerProps> = ({
           <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-5 flex flex-col justify-between max-w-3xl mx-auto w-full">
             {/* Top Center: Question */}
             <div className="pt-1 sm:pt-3 pb-4 text-center space-y-2.5">
-              <div
-                className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-extrabold border ${
-                  isCoding
-                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
-                    : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
-                }`}
-              >
+              <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-black border bg-black/5 dark:bg-white/10 text-black dark:text-white border-black/20 dark:border-white/20">
                 <Zap className="w-3.5 h-3.5 fill-current" />
                 <span>Step {currentIndex + 1} of {totalQuestions}</span>
               </div>
 
-              <h2 className="text-lg sm:text-xl md:text-2xl font-extrabold text-slate-900 dark:text-zinc-100 tracking-tight leading-snug max-w-2xl mx-auto px-2">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-black text-black dark:text-white tracking-tight leading-snug max-w-2xl mx-auto px-2">
                 {currentQ.question}
               </h2>
             </div>
@@ -304,7 +282,7 @@ export const QuickQuizDrawer: React.FC<QuickQuizDrawerProps> = ({
                 const isCustom = opt.isCustom || opt.id === "CUSTOM" || (idx === currentQ.options.length - 1 && currentQ.allowCustomAnswer);
 
                 return (
-                  <div key={opt.id || idx} className="space-y-2">
+                  <div key={`question-${currentQ.id || currentIndex}-opt-${idx}-${opt.id || idx}`} className="space-y-2">
                     <motion.button
                       type="button"
                       whileHover={{ scale: 1.01 }}
@@ -312,21 +290,17 @@ export const QuickQuizDrawer: React.FC<QuickQuizDrawerProps> = ({
                       onClick={() => handleSelectOption(opt.id)}
                       className={`w-full text-left p-3.5 sm:p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex items-center justify-between relative group ${
                         isSelected
-                          ? isCoding
-                            ? "bg-emerald-50/90 dark:bg-emerald-950/50 border-emerald-500 text-slate-900 dark:text-zinc-100 ring-2 ring-emerald-500/80 shadow-[0_0_24px_rgba(16,185,129,0.25)]"
-                            : "bg-amber-50/90 dark:bg-amber-950/50 border-amber-500 text-slate-900 dark:text-zinc-100 ring-2 ring-amber-500/80 shadow-[0_0_24px_rgba(245,158,11,0.25)]"
-                          : "bg-slate-50 dark:bg-zinc-800/60 hover:bg-white dark:hover:bg-zinc-800 border-slate-200 dark:border-zinc-700/80 text-slate-800 dark:text-zinc-200 hover:border-slate-300 dark:hover:border-zinc-600 shadow-xs"
+                          ? "bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-md font-bold"
+                          : "bg-white dark:bg-black hover:bg-black/5 dark:hover:bg-white/10 border-black/20 dark:border-white/20 text-black dark:text-white shadow-xs"
                       }`}
                     >
                       <div className="flex items-center space-x-3 sm:space-x-3.5 min-w-0 pr-3">
                         {/* Letter badge */}
                         <div
-                          className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center font-extrabold text-xs sm:text-sm shrink-0 transition-colors ${
+                          className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center font-black text-xs sm:text-sm shrink-0 transition-colors ${
                             isSelected
-                              ? isCoding
-                                ? "bg-emerald-600 text-white shadow-xs"
-                                : "bg-amber-500 text-white shadow-xs"
-                              : "bg-white dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 border border-slate-300 dark:border-zinc-600 group-hover:border-slate-400"
+                              ? "bg-white text-black dark:bg-black dark:text-white shadow-xs"
+                              : "bg-black/10 dark:bg-white/15 text-black dark:text-white border border-black/20 dark:border-white/20"
                           }`}
                         >
                           {isCustom ? <PenTool className="w-3.5 h-3.5" /> : letterLabel}
@@ -341,15 +315,11 @@ export const QuickQuizDrawer: React.FC<QuickQuizDrawerProps> = ({
                       {/* Checkmark indicator */}
                       <div className="shrink-0">
                         {isSelected ? (
-                          <div
-                            className={`w-5 h-5 rounded-full text-white flex items-center justify-center shadow-xs ${
-                              isCoding ? "bg-emerald-600" : "bg-amber-500"
-                            }`}
-                          >
+                          <div className="w-5 h-5 rounded-full bg-white text-black dark:bg-black dark:text-white flex items-center justify-center shadow-xs">
                             <CheckCircle2 className="w-3.5 h-3.5 fill-current" />
                           </div>
                         ) : (
-                          <div className="w-4 h-4 rounded-full border-2 border-slate-300 dark:border-zinc-600" />
+                          <div className="w-4 h-4 rounded-full border-2 border-black/25 dark:border-white/25" />
                         )}
                       </div>
                     </motion.button>
@@ -370,7 +340,7 @@ export const QuickQuizDrawer: React.FC<QuickQuizDrawerProps> = ({
                               placeholder="Type your custom requirements or tech stack..."
                               value={customAnswers[currentQ.id] || ""}
                               onChange={(e) => handleCustomTextChange(e.target.value)}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-400 dark:border-emerald-600 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-emerald-500/50 shadow-inner"
+                              className="w-full px-3.5 py-2.5 rounded-xl border border-black dark:border-white bg-white dark:bg-black text-black dark:text-white text-xs font-bold focus:outline-hidden shadow-inner"
                             />
                           </div>
                         </motion.div>
@@ -388,10 +358,8 @@ export const QuickQuizDrawer: React.FC<QuickQuizDrawerProps> = ({
                   disabled={!currentSelectedOptionId}
                   className={`px-5 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer ${
                     currentSelectedOptionId
-                      ? isCoding
-                        ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md active:scale-95"
-                        : "bg-amber-600 hover:bg-amber-700 text-white shadow-md active:scale-95"
-                      : "bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed"
+                      ? "bg-black text-white dark:bg-white dark:text-black hover:opacity-90 shadow-md active:scale-95 border border-black dark:border-white"
+                      : "bg-black/10 dark:bg-white/10 text-black/40 dark:text-white/40 cursor-not-allowed border border-black/10 dark:border-white/10"
                   }`}
                 >
                   <Send className="w-3 h-3" />

@@ -569,6 +569,7 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
       googleApiKey,
       googleCx,
       groqApiKey,
+      codebaseContext,
     } = req.body;
 
     if (!prompt && (!files || files.length === 0)) {
@@ -626,60 +627,60 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
    - **Deep Technical / Quality Inspection**: Detect bugs, data anomalies, missing records, syntax issues, security vulnerabilities, or performance bottlenecks.
    - **Actionable Next Steps & Solutions**: Provide exact fixes, optimized code snippets, or analytical conclusions.
 
-### 🌟 4-PHASE DEVELOPMENT & CODING WORKFLOW (CRITICAL):
-When the user asks to code, develop, or build any website, platform, application, or system (e.g. "build a sales website", "code a chatting platform", "build a crypto dashboard", etc.):
-NEVER rush through the process or output half-hearted truncated snippets. Provide a clean, robust, and polished implementation through these 4 structured phases:
+### 🌟 4-PHASE DEVELOPMENT & CODING WORKFLOW:
+When the user asks to code, develop, or build any website, platform, application, or system (e.g. "build a sales website", "create a landing page for my business", "code a chat platform", "build a crypto dashboard", etc.):
+Deliver clean, production-ready code with complete multi-file implementations:
 
-#### PHASE 1: MARKET BENCHMARK & CREATIVE PRODUCT CONCEPT
-1. **Compare with existing platforms**: Always benchmark the project against premier real-world platforms (e.g. For a sales/e-commerce website, compare with **Amazon, Jumia, Shopify, ASOS**; for chat/messaging, compare with **Discord, Slack, WhatsApp**; for streaming, compare with **Spotify, YouTube**).
-2. **Proactive creative features**: Identify not only what was explicitly mentioned, but everything that is genuinely needed for a production experience:
-   - Specific visual theme & aesthetic (e.g., *"Deep Midnight Navy & Slate Blue luxury theme with amber gold accents and glassmorphic cards"*).
-   - Core interactive user capabilities (e.g., users can browse products with real high-resolution images, price tags, discount badges, detailed descriptions, 5-star rating systems with review counters, real-time stock indicators, slide-over live cart with quantity counters, simulated checkout flow with coupon code discounts, and order confirmation receipt).
+#### PHASE 1: MARKET BENCHMARK & CONCEPT
+1. Benchmark against premier real-world platforms (e.g. Amazon, Shopify, Discord, Spotify).
+2. Choose a clean visual identity (e.g., modern high-contrast Black & White, sleek dark canvas, or tailored palette) and core user features.
 
 #### PHASE 2: PRE-COMMENCEMENT DUAL-MODEL ARCHITECTURAL AUDIT
-Before the commencement of any project, the process must be formally audited and reviewed by the secondary model (**openai/gpt-oss-20b** Architecture Inspector):
+Before project implementation, verify the architecture with the secondary model (**openai/gpt-oss-20b** Architecture Inspector):
 \`\`\`
 🛡️ [Secondary Model Architecture Review - Verified by openai/gpt-oss-20b]:
 - Folder & File Structure: Validated modular directory hierarchy (public/, src/pages/, styles/, src/utils/, src/)
-- Component Reactivity & State: Validated DOM event binding, local storage cart persistence, and modal lifecycles
-- Responsive & Accessibility: Verified mobile touch standards (44px min targets) & fluid desktop layout
+- Component Reactivity & State: Validated DOM event binding, local storage persistence, and modal lifecycles
+- Responsive & Accessibility: Verified mobile touch standards (44px min targets) & fluid layout
 - Quality Status: ✅ APPROVED FOR PRODUCTION IMPLEMENTATION
 \`\`\`
 
-#### PHASE 3: BLUEPRINT & STRUCTURED STEP ROADMAP
-Present a clear, step-by-step roadmap organized into real folders, subfolders, and files:
-- **Step 1: Adding the core application structure in public/index.html (or homebuild.html)**
-- **Step 2: Adding discovery & catalog pages in src/pages/discover.html**
-- **Step 3: Building responsive design tokens and utility styling in styles/main.css**
-- **Step 4: Implementing state engine, shopping cart, filter logic & checkout in src/app.js**
+#### PHASE 3: STRUCTURED ROADMAP & FILE LIST
+Present a concise roadmap organized into real folders, subfolders, and files (e.g. \`landing-page/public/index.html\`, \`landing-page/styles/main.css\`, \`landing-page/src/app.js\`).
 
-#### PHASE 4: HIGH-QUALITY MULTI-FILE EXECUTION (FOLDERS, SUBFOLDERS & FILES)
-Follow the blueprint step-by-step with zero skipped code or placeholders:
-1. Explain the next step in clear English (e.g., *"I'll start with the web structure and layout in \`public/index.html\`..."*, *"Next, I'll build the responsive styles and design tokens in \`styles/main.css\`..."*, *"Now, I'll implement the interactive state management and cart engine in \`src/app.js\`..."*).
-2. Insert the thin edge-to-edge active file banner tag:
-   \`<activefile filename="public/index.html" step="Building core DOM structure and layout" step="1" total="4" status="working" />\`
-3. Emit the complete production-ready code with the folder/file path in the code fence header (e.g. \`\`\`html public/index.html ... \`\`\`).
-4. At the end of the entire build, conclude with the friendly preview invitation:
-   *"✨ **Live Preview Ready**: You can preview by clicking on \`index.html\` (or \`homebuild.html\`). Test the interface and let me know if you run into any problems or want more additions!"*
+#### PHASE 4: COMPLETE PRODUCTION-READY CODE (FOLDERS, SUBFOLDERS & FILES)
+1. Insert the active file banner tag before each file:
+   \`<activefile filename="project-name/public/index.html" step="Building core layout" step="1" total="3" status="working" />\`
+2. Emit the complete code with folder/file path in the code fence header (e.g. \`\`\`html landing-page/public/index.html ... \`\`\`).
+3. Conclude with:
+   *"✨ **Live Preview Ready**: You can preview by opening the Code Preview or Codebase explorer. All files are saved into your central Codebase workspace."*
 
-### 2. INTERACTIVE CODING SPECIFICATIONS & BLUEPRINT QUIZZES:
-- When asking clarifying architectural options, provide an interactive specification quiz in a \`\`\`quiz block.
-- The LAST option for every question MUST be a custom option with \`"isCustom": true\` so the user can input custom requirements.
+### 📁 CENTRAL CODEBASE WORKSPACE & CROSS-CHAT SURGICAL EDITING:
+All code you generate is automatically organized into folders and files inside the user's shared **Codebase** workspace.
+When the user in this chat or ANY other chat asks to edit, modify, fix, or update an existing project or file (e.g. "edit the landing page to change hero button", "update the header in index.html", "modify main.css"):
+1. Access and reference the existing code from the Codebase context.
+2. ONLY output and update the specific file(s) that need changes (e.g. \`\`\`css landing-page/styles/main.css ... \`\`\`).
+3. Do NOT recreate or re-emit untouched files from scratch if they don't need changes.
 
-### 3. LIVE BINANCE MARKET DATA & CANDLESTICK CHARTS:
-When the user asks for live Binance cryptocurrency market data or technical analysis (e.g. BTCUSDT, ETHUSDT, SOLUSDT), embed the chart using:
-\`\`\`binance
-BTCUSDT
-\`\`\`
+### ❓ INTERACTIVE QUESTIONS & QUIZZES POLICY:
+- DO NOT ask quick questions or generate \`\`\`quiz blocks for normal coding requests (e.g. landing pages, todo lists, scripts, edits, bug fixes). Directly build and code the solution!
+- ONLY provide interactive question blocks when the user explicitly asks for an interactive questionnaire/quiz, or when explicitly planning a massive enterprise multi-tier architecture suite.
 
-### 4. INTERACTIVE CHARTS & VISUALIZATIONS:
-When general data charts are requested, format using a \`\`\`chart block with valid JSON.`;
+### 📈 BINANCE & CHARTS:
+- For live Binance crypto data: use \`\`\`binance BTCUSDT \`\`\`
+- For general charts: use \`\`\`chart with valid JSON.`;
+
+    let finalSystemPrompt = systemInstruction
+      ? `${systemInstruction}\n\n${defaultStructuredSystemInstruction}`
+      : defaultStructuredSystemInstruction;
+
+    if (codebaseContext) {
+      finalSystemPrompt += `\n\n${codebaseContext}`;
+    }
 
     messages.push({
       role: "system",
-      content: systemInstruction
-        ? `${systemInstruction}\n\n${defaultStructuredSystemInstruction}`
-        : defaultStructuredSystemInstruction,
+      content: finalSystemPrompt,
     });
 
     if (history && history.length > 0) {

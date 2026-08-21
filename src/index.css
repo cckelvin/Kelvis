@@ -5,17 +5,31 @@
 @layer base {
   html {
     color-scheme: light;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
   html.dark {
     color-scheme: dark;
   }
   body {
-    background-color: #f8fafc;
-    color: #0f172a;
-    transition: background-color 0.2s ease, color 0.2s ease;
+    background-color: #ffffff;
+    color: #000000;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 600;
+    transition: background-color 0.15s ease, color 0.15s ease;
   }
   html.dark body {
-    background-color: #09090b;
-    color: #f4f4f5;
+    background-color: #000000;
+    color: #ffffff;
+  }
+
+  /* Monochromatic selection */
+  ::selection {
+    background-color: #000000;
+    color: #ffffff;
+  }
+  html.dark ::selection {
+    background-color: #ffffff;
+    color: #000000;
   }
 }
+

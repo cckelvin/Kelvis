@@ -1,22 +1,47 @@
 import { QuizPayload, QuizQuestion, QuizOption } from "../types";
 
 /**
- * Detect if user prompt is requesting to build/code an app, platform, or feature
+ * Detect if user prompt is requesting to build/code an explicitly LARGE, complex multi-tier project
+ * or explicitly requests interactive setup questions/quizzes.
+ * Normal requests (e.g. landing page, scripts, bug fixes, edits, small tools) MUST NOT trigger quizzes!
  */
-export function isCodingPrompt(prompt: string): boolean {
+export function isLargeProjectCodingPrompt(prompt: string): boolean {
   if (!prompt) return false;
-  const p = prompt.toLowerCase();
-  
-  // Exclude simple questions or direct answers
-  if (p.startsWith("quiz answers") || p.startsWith("🎯") || p.includes("submitted answers")) {
+  const p = prompt.toLowerCase().trim();
+
+  // Exclude simple questions, edits, single pages, or answers
+  if (
+    p.startsWith("quiz answers") ||
+    p.startsWith("🎯") ||
+    p.includes("submitted answers") ||
+    p.includes("edit") ||
+    p.includes("modify") ||
+    p.includes("update") ||
+    p.includes("change") ||
+    p.includes("fix") ||
+    p.includes("landing page") ||
+    p.includes("single page") ||
+    p.includes("script")
+  ) {
     return false;
   }
 
-  return (
-    /\b(code|build|create|develop|make|program|design|scaffold|implement|generate)\b/i.test(p) &&
-    /\b(platform|app|website|web app|dashboard|chat|chatting|store|ecommerce|sales|sale|shop|shopping|portfolio|calculator|todo|tracker|saas|landing page|interface|ui|system|clone|game|service|tool|component|amazon|jumia)\b/i.test(p)
-  );
+  // Explicit quiz / questionnaire requests
+  if (
+    /\b(ask me questions|ask questions|with questions|give me a quiz|interactive quiz|blueprint questionnaire|ask before coding|clarify requirements first)\b/i.test(p)
+  ) {
+    return true;
+  }
+
+  // Only trigger for explicitly declared massive/large enterprise multi-module projects
+  const hasLargeDescriptor = /\b(large project|massive project|enterprise platform|multi-tenant|full-scale ecosystem|complex architecture suite|erp system|large-scale system)\b/i.test(p);
+  const hasBuildVerb = /\b(build|code|develop|architect|engineer)\b/i.test(p);
+
+  return hasLargeDescriptor && hasBuildVerb;
 }
+
+// Backward-compatibility export: alias to isLargeProjectCodingPrompt
+export const isCodingPrompt = isLargeProjectCodingPrompt;
 
 /**
  * Generate an interactive architecture & design specification quiz when a user asks to code something

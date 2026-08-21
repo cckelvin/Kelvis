@@ -83,6 +83,29 @@ export interface ActiveFileProgress {
   totalSteps?: number;
 }
 
+export interface CodebaseFile {
+  id: string;
+  path: string; // e.g. "landing-page/public/index.html" or "landing-page/styles/main.css"
+  name: string; // "index.html"
+  folder: string; // "landing-page/public" or "landing-page"
+  project: string; // "landing-page"
+  code: string;
+  language: string; // "html" | "css" | "javascript" | "typescript" | "json" | etc.
+  updatedAt: string;
+  createdAt: string;
+  chatSessionId?: string;
+  chatTitle?: string;
+  size?: number;
+  lineCount?: number;
+}
+
+export interface CodebaseProject {
+  name: string;
+  fileCount: number;
+  updatedAt: string;
+  files: CodebaseFile[];
+}
+
 export interface Bouk {
   id: string;
   title: string;
