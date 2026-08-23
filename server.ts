@@ -448,11 +448,24 @@ app.post(["/api/voice/gemini-call", "/voice/gemini-call"], async (req, res) => {
       .replace(/\s+/g, " ")
       .trim();
 
-    // 2. Synthesize High-Fidelity 24kHz Neural Audio with Gemini TTS
+    // 2. Synthesize High-Fidelity Neural Audio with Groq TTS (canopylabs/orpheus-v1-english) or Gemini TTS
     let audioBase64: string | null = null;
-    let mimeType = "audio/wav";
+    let mimeType = "audio/mp3";
 
-    if (gemini && cleanSpoken) {
+    // Primary: Groq TTS with canopylabs/orpheus-v1-english
+    if (cleanSpoken) {
+      try {
+        const groqTtsRes = await synthesizeGroqTTS(cleanSpoken, "orpheus");
+        if (groqTtsRes) {
+          audioBase64 = groqTtsRes.audioBase64;
+          mimeType = groqTtsRes.mimeType;
+        }
+      } catch (err: any) {
+        console.warn("Groq TTS call turn notice:", err.message);
+      }
+    }
+
+    if (!audioBase64 && gemini && cleanSpoken) {
       try {
         const validVoices = ["Kore", "Puck", "Fenrir", "Charon", "Zephyr"];
         const selectedVoice = validVoices.includes(voiceName) ? voiceName : "Kore";
@@ -475,6 +488,7 @@ app.post(["/api/voice/gemini-call", "/voice/gemini-call"], async (req, res) => {
           const pcmBuf = Buffer.from(rawPcm, "base64");
           const wavBuf = pcmToWav(pcmBuf, 24000);
           audioBase64 = wavBuf.toString("base64");
+          mimeType = "audio/wav";
         }
       } catch (ttsErr: any) {
         console.warn("Gemini TTS synthesis note:", ttsErr.message);
@@ -495,7 +509,285 @@ app.post(["/api/voice/gemini-call", "/voice/gemini-call"], async (req, res) => {
   }
 });
 
-// Standalone Gemini TTS Endpoint for Reading Any Message Aloud
+// Groq Neural TTS Helper with canopylabs/orpheus-v1-english
+async function synthesizeGroqTTS(
+  text: string,
+  voice = "orpheus",
+  customApiKey?: string
+): Promise<{ audioBase64: string; mimeType: string } | null> {
+  const apiKey =
+    customApiKey ||
+    process.env.GROQ_API_KEY ||
+    process.env.groq_api_key ||
+    process.env.VITE_GROQ_API_KEY;
+
+  if (!apiKey) return null;
+
+  try {
+    const cleanText = text
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/[*_#`~[\]()]/g, "")
+      .slice(0, 1000)
+      .trim();
+
+    if (!cleanText) return null;
+
+    const response = await fetch("https://api.groq.com/openai/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "canopylabs/orpheus-v1-english",
+        input: cleanText,
+        voice: voice || "orpheus",
+        response_format: "mp3",
+      }),
+    });
+
+    if (response.ok) {
+      const arrayBuf = await response.arrayBuffer();
+      const buf = Buffer.from(arrayBuf);
+      return {
+        audioBase64: buf.toString("base64"),
+        mimeType: response.headers.get("content-type") || "audio/mp3",
+      };
+    } else {
+      const errTxt = await response.text();
+      console.warn("Groq TTS API response:", response.status, errTxt);
+    }
+  } catch (err: any) {
+    console.warn("Groq TTS fetch error:", err.message);
+  }
+  return null;
+}
+
+// Groq Whisper Large v3 STT Helper
+async function transcribeGroqSTT(
+  audioBuffer: Buffer,
+  mimeType = "audio/webm",
+  customApiKey?: string
+): Promise<string | null> {
+  const apiKey =
+    customApiKey ||
+    process.env.GROQ_API_KEY ||
+    process.env.groq_api_key ||
+    process.env.VITE_GROQ_API_KEY;
+
+  if (!apiKey) return null;
+
+  try {
+    const formData = new FormData();
+    const blob = new Blob([audioBuffer], { type: mimeType || "audio/webm" });
+    formData.append("file", blob, "recording.webm");
+    formData.append("model", "whisper-large-v3");
+    formData.append("language", "en");
+    formData.append("response_format", "json");
+
+    const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: formData,
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.text || "";
+    } else {
+      const errTxt = await response.text();
+      console.warn("Groq STT API response:", response.status, errTxt);
+    }
+  } catch (err: any) {
+    console.warn("Groq STT fetch error:", err.message);
+  }
+  return null;
+}
+
+// Dedicated Groq TTS Endpoint (canopylabs/orpheus-v1-english) with Gemini fallback
+app.post(["/api/voice/groq-tts", "/voice/groq-tts", "/api/voice/tts", "/voice/tts"], async (req, res) => {
+  try {
+    const { text, voice = "orpheus", groqApiKey, customApiKey } = req.body;
+    if (!text || !String(text).trim()) {
+      res.status(400).json({ error: "Text is required for TTS" });
+      return;
+    }
+
+    const cleanText = String(text)
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/[*_#`~[\]()]/g, "")
+      .slice(0, 1000)
+      .trim();
+
+    // 1. Try Groq canopylabs/orpheus-v1-english TTS
+    const groqRes = await synthesizeGroqTTS(cleanText, voice, groqApiKey || customApiKey);
+    if (groqRes && groqRes.audioBase64) {
+      res.json({
+        success: true,
+        model: "canopylabs/orpheus-v1-english",
+        audioBase64: groqRes.audioBase64,
+        mimeType: groqRes.mimeType,
+        voice,
+      });
+      return;
+    }
+
+    // 2. Fallback to Gemini TTS if Groq TTS is unavailable
+    const gemini = getGeminiClient(customApiKey);
+    if (gemini) {
+      try {
+        const validVoices = ["Kore", "Puck", "Fenrir", "Charon", "Zephyr"];
+        const selectedVoice = validVoices.includes(voice) ? voice : "Kore";
+        const ttsResponse = await gemini.models.generateContent({
+          model: "gemini-3.1-flash-tts-preview",
+          contents: [{ parts: [{ text: cleanText.slice(0, 800) }] }],
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName: selectedVoice },
+              },
+            },
+          },
+        });
+
+        const rawPcm = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (rawPcm) {
+          const pcmBuf = Buffer.from(rawPcm, "base64");
+          const wavBuf = pcmToWav(pcmBuf, 24000);
+          res.json({
+            success: true,
+            model: "gemini-3.1-flash-tts-preview",
+            audioBase64: wavBuf.toString("base64"),
+            mimeType: "audio/wav",
+            voice: selectedVoice,
+          });
+          return;
+        }
+      } catch (gemErr) {
+        console.warn("Fallback Gemini TTS notice:", gemErr);
+      }
+    }
+
+    res.status(500).json({ error: "TTS generation failed on both Groq and Gemini" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "TTS generation failed" });
+  }
+});
+
+// Dedicated Groq STT Endpoint (whisper-large-v3)
+app.post(["/api/voice/groq-stt", "/voice/groq-stt", "/api/voice/stt", "/voice/stt"], async (req, res) => {
+  try {
+    const { audioBase64, mimeType = "audio/webm", groqApiKey } = req.body;
+    if (!audioBase64) {
+      res.status(400).json({ error: "audioBase64 is required for transcription" });
+      return;
+    }
+
+    const audioBuf = Buffer.from(audioBase64, "base64");
+    const text = await transcribeGroqSTT(audioBuf, mimeType, groqApiKey);
+
+    if (text !== null) {
+      res.json({
+        success: true,
+        model: "whisper-large-v3",
+        text,
+      });
+    } else {
+      res.status(500).json({ error: "Transcription failed using whisper-large-v3" });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "STT transcription failed" });
+  }
+});
+
+// Interactive Define & Explain Text Endpoint
+app.post(["/api/define-text", "/define-text"], async (req, res) => {
+  try {
+    const { text, context, groqApiKey } = req.body;
+    if (!text || !String(text).trim()) {
+      res.status(400).json({ error: "Text is required to define" });
+      return;
+    }
+
+    const groq = getGroqClient(groqApiKey);
+    const gemini = getGeminiClient();
+
+    const selectedWord = String(text).trim();
+    const systemPrompt = `You are Kelvis AI's instant concept definer and intellectual dictionary.
+When given a selected word, phrase, technical term, expression, or code snippet, provide an authoritative, clear, engaging, and structured explanation.
+
+Structure your markdown response with clean headers and bullet points:
+### 📖 Definition & Core Meaning
+Direct, precise, intuitive explanation of what this term means.
+
+### 💡 Deep Context & Significance
+Explain how and why it is used, its significance in programming, mathematics, finance, language, or conversation.
+
+### 🛠️ Practical Examples & Usage
+Provide 2-3 concise, realistic examples or code snippets demonstrating how it applies.
+
+### 🔗 Key Takeaways & Related Terms
+• Core takeaway summary
+• Closely related words or concepts to explore
+
+Keep formatting sharp, bold, professional, and accessible.`;
+
+    const userPrompt = `Explain and define the following selected text: "${selectedWord}"${
+      context ? `\n\nContext where it appeared:\n"${String(context).slice(0, 500)}"` : ""
+    }`;
+
+    let definition = "";
+
+    if (groq) {
+      try {
+        const completion = await groq.chat.completions.create({
+          model: "openai/gpt-oss-120b",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.5,
+          max_tokens: 700,
+        });
+        definition = completion.choices[0]?.message?.content || "";
+      } catch (e: any) {
+        console.warn("Groq define error:", e.message);
+      }
+    }
+
+    if (!definition && gemini) {
+      try {
+        const resp = await gemini.models.generateContent({
+          model: "gemini-3.7-flash",
+          contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+          config: { maxOutputTokens: 700, temperature: 0.5 },
+        });
+        definition = resp.text || "";
+      } catch (e: any) {
+        console.warn("Gemini define error:", e.message);
+      }
+    }
+
+    if (!definition) {
+      definition = `### 📖 Definition: **${selectedWord}**\n\n**${selectedWord}** is a highlighted term from the conversation.`;
+    }
+
+    res.json({
+      success: true,
+      word: selectedWord,
+      definition,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to generate definition" });
+  }
+});
+
+// Standalone Gemini TTS Endpoint for Reading Any Message Aloud (legacy endpoint kept for backward-compatibility)
 app.post(["/api/voice/gemini-tts", "/voice/gemini-tts"], async (req, res) => {
   try {
     const { text, voiceName = "Kore", customApiKey } = req.body;
@@ -504,9 +796,22 @@ app.post(["/api/voice/gemini-tts", "/voice/gemini-tts"], async (req, res) => {
       return;
     }
 
+    // Try Groq TTS first as per mandate
+    const groqRes = await synthesizeGroqTTS(text, "orpheus", customApiKey);
+    if (groqRes) {
+      res.json({
+        success: true,
+        model: "canopylabs/orpheus-v1-english",
+        audioBase64: groqRes.audioBase64,
+        mimeType: groqRes.mimeType,
+        voice: "orpheus",
+      });
+      return;
+    }
+
     const gemini = getGeminiClient(customApiKey);
     if (!gemini) {
-      res.status(400).json({ error: "Gemini API key not configured for neural TTS" });
+      res.status(400).json({ error: "API key not configured for neural TTS" });
       return;
     }
 
@@ -544,6 +849,7 @@ app.post(["/api/voice/gemini-tts", "/voice/gemini-tts"], async (req, res) => {
 
     res.json({
       success: true,
+      model: "gemini-3.1-flash-tts-preview",
       audioBase64: wavBuf.toString("base64"),
       mimeType: "audio/wav",
       voice: selectedVoice,

@@ -149,6 +149,8 @@ export default function App() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Load sessions from Supabase & Subscribe to Realtime Updates across devices
   useEffect(() => {
@@ -226,22 +228,84 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeSession?.messages, isLoading]);
 
-  // Speech-To-Text setup (Browser Web Speech API)
-  const toggleSpeechToText = () => {
+  // Speech-To-Text setup (Groq Whisper Large v3 with Web Speech fallback)
+  const toggleSpeechToText = async () => {
     if (isListening) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {}
       }
       setIsListening(false);
       return;
     }
 
+    // 1. Primary: Use MediaRecorder to stream audio directly to Groq whisper-large-v3
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunksRef.current = [];
+        const mediaRecorder = new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          stream.getTracks().forEach((track) => track.stop());
+          if (audioChunksRef.current.length > 0) {
+            const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+              const base64Data = (reader.result as string)?.split(",")[1];
+              if (base64Data) {
+                try {
+                  const res = await fetch("/api/voice/groq-stt", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      audioBase64: base64Data,
+                      mimeType: "audio/webm",
+                      groqApiKey: settings.customGroqApiKey,
+                    }),
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    if (data.text && data.text.trim()) {
+                      setPrompt((prev) => (prev ? `${prev} ${data.text.trim()}` : data.text.trim()));
+                    }
+                  }
+                } catch (err) {
+                  console.warn("Groq Whisper STT processing notice:", err);
+                }
+              }
+            };
+            reader.readAsDataURL(audioBlob);
+          }
+          setIsListening(false);
+        };
+
+        mediaRecorder.start();
+        mediaRecorderRef.current = mediaRecorder;
+        setIsListening(true);
+        return;
+      } catch (micErr) {
+        console.warn("Microphone stream notice, checking Web Speech fallback:", micErr);
+      }
+    }
+
+    // 2. Fallback: Web Speech Recognition API
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert("Speech Recognition is not supported in this browser. Please type your message.");
+      alert("Speech Recognition requires microphone permissions. Please enable mic access.");
       return;
     }
 
@@ -276,7 +340,7 @@ export default function App() {
   // Audio player ref for Neural TTS audio playback
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Text-To-Speech Readout with Neural Voice & Browser Fallback
+  // Text-To-Speech Readout with Groq canopylabs/orpheus-v1-english & Fallbacks
   const speakText = async (rawText: string, msgId?: string) => {
     // 1. Clean markdown, code blocks, activefile tags, and special symbols for natural speech
     const cleanSpoken = rawText
@@ -301,7 +365,41 @@ export default function App() {
 
     if (msgId) setCurrentlySpeakingId(msgId);
 
-    // Try Neural TTS from backend first
+    // 1. Primary: Groq Neural TTS (canopylabs/orpheus-v1-english)
+    try {
+      const res = await fetch("/api/voice/groq-tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: cleanSpoken.slice(0, 1000),
+          voice: "orpheus",
+          groqApiKey: settings.customGroqApiKey,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.audioBase64) {
+          const audioUrl = `data:${data.mimeType || "audio/mp3"};base64,${data.audioBase64}`;
+          const audio = new Audio(audioUrl);
+          activeAudioRef.current = audio;
+          audio.onended = () => {
+            setCurrentlySpeakingId(null);
+            activeAudioRef.current = null;
+          };
+          audio.onerror = () => {
+            setCurrentlySpeakingId(null);
+            activeAudioRef.current = null;
+          };
+          await audio.play();
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Groq Orpheus TTS notice, falling back:", e);
+    }
+
+    // 2. Secondary: Gemini TTS
     try {
       const res = await fetch("/api/voice/gemini-tts", {
         method: "POST",
@@ -331,11 +429,9 @@ export default function App() {
           return;
         }
       }
-    } catch (e) {
-      // Continue to Web Speech API fallback
-    }
+    } catch (e) {}
 
-    // Fallback: Browser Web Speech API
+    // 3. Fallback: Browser Web Speech API
     if ("speechSynthesis" in window) {
       const utterance = new SpeechSynthesisUtterance(cleanSpoken);
       utterance.rate = 1.05;

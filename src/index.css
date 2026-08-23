@@ -22,14 +22,35 @@
     color: #ffffff;
   }
 
-  /* Monochromatic selection */
+  /* Monochromatic default selection */
   ::selection {
-    background-color: #000000;
-    color: #ffffff;
+    background-color: #93c5fd; /* Soft light blue */
+    color: #0f172a;
   }
   html.dark ::selection {
-    background-color: #ffffff;
-    color: #000000;
+    background-color: #38bdf8; /* Vibrant sky blue */
+    color: #020617;
+  }
+
+  /* Specific AI Response Message Tab Selection Highlight (Light Blue) */
+  .ai-response-content ::selection,
+  .ai-response-content *::selection,
+  .selectable-ai-text ::selection,
+  .selectable-ai-text *::selection,
+  [data-ai-bubble="true"] ::selection,
+  [data-ai-bubble="true"] *::selection {
+    background-color: #93c5fd !important; /* light blue */
+    color: #0f172a !important; /* high contrast dark navy */
+  }
+
+  html.dark .ai-response-content ::selection,
+  html.dark .ai-response-content *::selection,
+  html.dark .selectable-ai-text ::selection,
+  html.dark .selectable-ai-text *::selection,
+  html.dark [data-ai-bubble="true"] ::selection,
+  html.dark [data-ai-bubble="true"] *::selection {
+    background-color: #38bdf8 !important; /* bright sky blue */
+    color: #000000 !important;
   }
 }
 

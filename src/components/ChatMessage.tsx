@@ -29,6 +29,8 @@ import { ChartRenderer } from "./ChartRenderer";
 import { TradingViewChart } from "./TradingViewChart";
 import { extractQuizFromText, createTopicQuickQuiz } from "../utils/quizParser";
 import { ActiveFileBanner } from "./ActiveFileBanner";
+import { TextSelectionBubble, SelectionCoordinates } from "./TextSelectionBubble";
+import { TextDefineModal } from "./TextDefineModal";
 
 interface ParsedFile {
   name: string;
@@ -238,7 +240,239 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     files: [],
   });
 
+  // Long-press and text selection pop bubble state
+  const [selectionData, setSelectionData] = useState<{
+    text: string;
+    coords: SelectionCoordinates;
+  } | null>(null);
+  const [isDefineModalOpen, setIsDefineModalOpen] = useState(false);
+  const [defineWord, setDefineWord] = useState("");
+  const [isSelectionSpeaking, setIsSelectionSpeaking] = useState(false);
+
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const longPressTimerRef = React.useRef<any>(null);
+  const touchStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
+  const selectionAudioRef = React.useRef<HTMLAudioElement | null>(null);
+
   const isUser = message.role === "user";
+
+  // Helper to select word at client coordinates (X, Y)
+  const selectWordAtPoint = (clientX: number, clientY: number): boolean => {
+    let range: Range | null = null;
+    if ((document as any).caretRangeFromPoint) {
+      range = (document as any).caretRangeFromPoint(clientX, clientY);
+    } else if ((document as any).caretPositionFromPoint) {
+      const pos = (document as any).caretPositionFromPoint(clientX, clientY);
+      if (pos && pos.offsetNode) {
+        range = document.createRange();
+        range.setStart(pos.offsetNode, pos.offset);
+        range.collapse(true);
+      }
+    }
+
+    if (!range || !range.startContainer) return false;
+
+    const node = range.startContainer;
+    if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+      const text = node.textContent;
+      let start = range.startOffset;
+      let end = range.startOffset;
+
+      // Expand to word boundaries backwards and forwards
+      while (start > 0 && /[\w\d\-_]/.test(text[start - 1])) {
+        start--;
+      }
+      while (end < text.length && /[\w\d\-_]/.test(text[end])) {
+        end++;
+      }
+
+      if (start < end) {
+        const wordRange = document.createRange();
+        wordRange.setStart(node, start);
+        wordRange.setEnd(node, end);
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(wordRange);
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  // Check and update selection coordinates
+  const updateSelectionState = React.useCallback(() => {
+    if (isUser) return;
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) {
+      setSelectionData(null);
+      return;
+    }
+
+    const selectedStr = selection.toString().trim();
+    if (!selectedStr) {
+      setSelectionData(null);
+      return;
+    }
+
+    if (contentRef.current && selection.anchorNode) {
+      if (
+        contentRef.current.contains(selection.anchorNode) ||
+        contentRef.current.contains(selection.focusNode)
+      ) {
+        try {
+          const range = selection.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          if (rect && (rect.width > 0 || rect.height > 0)) {
+            setSelectionData({
+              text: selectedStr,
+              coords: {
+                x: rect.left + rect.width / 2,
+                y: rect.top,
+                width: rect.width,
+                height: rect.height,
+              },
+            });
+            return;
+          }
+        } catch (e) {}
+      }
+    }
+    setSelectionData(null);
+  }, [isUser]);
+
+  useEffect(() => {
+    if (isUser) return;
+    const handleSelectionChange = () => {
+      // Small debounce
+      setTimeout(updateSelectionState, 40);
+    };
+
+    const handleWindowClick = (e: MouseEvent | TouchEvent) => {
+      // Close bubble if clicked outside selection and outside bubble
+      const target = e.target as HTMLElement;
+      if (target && target.closest(".select-none")) return;
+      if (!window.getSelection()?.toString().trim()) {
+        setSelectionData(null);
+      }
+    };
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    document.addEventListener("mousedown", handleWindowClick);
+    document.addEventListener("touchstart", handleWindowClick);
+
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+      document.removeEventListener("mousedown", handleWindowClick);
+      document.removeEventListener("touchstart", handleWindowClick);
+      if (selectionAudioRef.current) {
+        selectionAudioRef.current.pause();
+        selectionAudioRef.current = null;
+      }
+    };
+  }, [isUser, updateSelectionState]);
+
+  // Touch handlers for long-press detection
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isUser || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+
+    longPressTimerRef.current = setTimeout(() => {
+      if (touchStartPosRef.current) {
+        const didSelect = selectWordAtPoint(
+          touchStartPosRef.current.x,
+          touchStartPosRef.current.y
+        );
+        if (didSelect) {
+          setTimeout(updateSelectionState, 50);
+        }
+      }
+    }, 380); // 380ms long press threshold
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartPosRef.current && e.touches.length === 1) {
+      const touch = e.touches[0];
+      const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+      const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+      if (dx > 10 || dy > 10) {
+        if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    setTimeout(updateSelectionState, 60);
+  };
+
+  // Speak Selected Text with Groq canopylabs/orpheus-v1-english
+  const handleSpeakSelectedText = async (text: string) => {
+    const cleanWord = text.trim();
+    if (!cleanWord) return;
+
+    if (selectionAudioRef.current) {
+      selectionAudioRef.current.pause();
+      selectionAudioRef.current = null;
+    }
+
+    setIsSelectionSpeaking(true);
+
+    try {
+      const res = await fetch("/api/voice/groq-tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: cleanWord,
+          voice: "orpheus",
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.audioBase64) {
+          const audioUrl = `data:${data.mimeType || "audio/mp3"};base64,${data.audioBase64}`;
+          const audio = new Audio(audioUrl);
+          selectionAudioRef.current = audio;
+          audio.onended = () => {
+            setIsSelectionSpeaking(false);
+            selectionAudioRef.current = null;
+          };
+          audio.onerror = () => {
+            setIsSelectionSpeaking(false);
+            selectionAudioRef.current = null;
+          };
+          await audio.play();
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Groq TTS failed for selection, falling back:", e);
+    }
+
+    // Fallback to Web Speech
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(cleanWord);
+      utterance.rate = 1.0;
+      utterance.onend = () => setIsSelectionSpeaking(false);
+      utterance.onerror = () => setIsSelectionSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setIsSelectionSpeaking(false);
+    }
+  };
+
+  // Open Definition Floating Page
+  const handleOpenDefine = (text: string) => {
+    setDefineWord(text);
+    setIsDefineModalOpen(true);
+    setSelectionData(null);
+  };
 
   // Check if message contains an embedded quiz
   const extractedQuiz = useMemo(() => {
@@ -509,8 +743,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 />
               )}
 
-              {/* Direct Markdown Content with Bold High-Contrast Black and White Typography */}
-              <div className="markdown-body text-black dark:text-white text-[16px] sm:text-[17px] leading-[1.75] select-text font-semibold">
+              {/* Direct Markdown Content with Bold High-Contrast Black and White Typography and Light-Blue Selection */}
+              <div
+                ref={contentRef}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onMouseUp={updateSelectionState}
+                data-ai-bubble="true"
+                className="ai-response-content selectable-ai-text markdown-body text-black dark:text-white text-[16px] sm:text-[17px] leading-[1.75] select-text font-semibold relative"
+              >
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
@@ -1027,6 +1269,30 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           projectName="web-project"
         />
       )}
+
+      {/* Small Pop Bubble Shaped Square for Selected AI Text */}
+      <AnimatePresence>
+        {selectionData && !isUser && (
+          <TextSelectionBubble
+            selectedText={selectionData.text}
+            coords={selectionData.coords}
+            onDefine={handleOpenDefine}
+            onSpeak={handleSpeakSelectedText}
+            isSpeaking={isSelectionSpeaking}
+            onClose={() => setSelectionData(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Floating Definition & Deep Breakdown Modal Page */}
+      <TextDefineModal
+        isOpen={isDefineModalOpen}
+        onClose={() => setIsDefineModalOpen(false)}
+        selectedText={defineWord}
+        contextText={cleanBodyText}
+        onSpeak={handleSpeakSelectedText}
+        isSpeaking={isSelectionSpeaking}
+      />
     </>
   );
 };
