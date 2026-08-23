@@ -306,13 +306,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     if (isUser) return;
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
-      setSelectionData(null);
       return;
     }
 
     const selectedStr = selection.toString().trim();
     if (!selectedStr) {
-      setSelectionData(null);
       return;
     }
 
@@ -324,6 +322,39 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         try {
           const range = selection.getRangeAt(0);
           const rect = range.getBoundingClientRect();
+          const clientRectList = range.getClientRects();
+          const rects: { x: number; y: number; width: number; height: number }[] = [];
+          for (let i = 0; i < clientRectList.length; i++) {
+            const cr = clientRectList[i];
+            if (cr.width > 0 && cr.height > 0) {
+              rects.push({
+                x: cr.left,
+                y: cr.top,
+                width: cr.width,
+                height: cr.height,
+              });
+            }
+          }
+
+          const firstRect = rects[0] || {
+            x: rect.left,
+            y: rect.top,
+            width: rect.width,
+            height: rect.height,
+          };
+          const lastRect = rects[rects.length - 1] || firstRect;
+
+          const startRect = {
+            x: firstRect.x,
+            y: firstRect.y,
+            height: firstRect.height,
+          };
+          const endRect = {
+            x: lastRect.x + lastRect.width,
+            y: lastRect.y,
+            height: lastRect.height,
+          };
+
           if (rect && (rect.width > 0 || rect.height > 0)) {
             setSelectionData({
               text: selectedStr,
@@ -332,6 +363,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 y: rect.top,
                 width: rect.width,
                 height: rect.height,
+                startRect,
+                endRect,
+                rects,
               },
             });
             return;
@@ -339,23 +373,75 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         } catch (e) {}
       }
     }
-    setSelectionData(null);
   }, [isUser]);
+
+  // Handle interactive drag handles to expand/shrink text selection
+  const handleDragHandleMove = (point: { x: number; y: number }, handleType: "start" | "end") => {
+    let targetRange: Range | null = null;
+    if ((document as any).caretRangeFromPoint) {
+      targetRange = (document as any).caretRangeFromPoint(point.x, point.y);
+    } else if ((document as any).caretPositionFromPoint) {
+      const pos = (document as any).caretPositionFromPoint(point.x, point.y);
+      if (pos && pos.offsetNode) {
+        targetRange = document.createRange();
+        targetRange.setStart(pos.offsetNode, pos.offset);
+        targetRange.collapse(true);
+      }
+    }
+
+    if (!targetRange || !targetRange.startContainer) return;
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+
+    const currentRange = selection.getRangeAt(0);
+    const newRange = document.createRange();
+
+    if (handleType === "start") {
+      try {
+        newRange.setStart(targetRange.startContainer, targetRange.startOffset);
+        newRange.setEnd(currentRange.endContainer, currentRange.endOffset);
+      } catch (e) {
+        try {
+          newRange.setStart(currentRange.endContainer, currentRange.endOffset);
+          newRange.setEnd(targetRange.startContainer, targetRange.startOffset);
+        } catch (err) {}
+      }
+    } else {
+      try {
+        newRange.setStart(currentRange.startContainer, currentRange.startOffset);
+        newRange.setEnd(targetRange.startContainer, targetRange.startOffset);
+      } catch (e) {
+        try {
+          newRange.setStart(targetRange.startContainer, targetRange.startOffset);
+          newRange.setEnd(currentRange.startContainer, currentRange.startOffset);
+        } catch (err) {}
+      }
+    }
+
+    selection.removeAllRanges();
+    selection.addRange(newRange);
+    updateSelectionState();
+  };
 
   useEffect(() => {
     if (isUser) return;
     const handleSelectionChange = () => {
-      // Small debounce
-      setTimeout(updateSelectionState, 40);
+      setTimeout(updateSelectionState, 30);
     };
 
     const handleWindowClick = (e: MouseEvent | TouchEvent) => {
-      // Close bubble if clicked outside selection and outside bubble
+      // Keep selection and pop up until user clicks/taps outside selection and outside controls
       const target = e.target as HTMLElement;
-      if (target && target.closest(".select-none")) return;
-      if (!window.getSelection()?.toString().trim()) {
-        setSelectionData(null);
+      if (
+        target &&
+        (target.closest(".select-none") ||
+          target.closest('[data-ai-bubble="true"]') ||
+          target.closest('[role="dialog"]'))
+      ) {
+        return;
       }
+      setSelectionData(null);
     };
 
     document.addEventListener("selectionchange", handleSelectionChange);
@@ -1280,6 +1366,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             onSpeak={handleSpeakSelectedText}
             isSpeaking={isSelectionSpeaking}
             onClose={() => setSelectionData(null)}
+            onDragHandleMove={handleDragHandleMove}
           />
         )}
       </AnimatePresence>
