@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { Sparkles, Volume2, Copy, Check, Loader2, CheckSquare } from "lucide-react";
+import { Sparkles, Volume2, Copy, Check, Loader2, CheckSquare, Maximize2 } from "lucide-react";
 
 export interface SelectionCoordinates {
   x: number;
@@ -14,6 +14,7 @@ interface TextSelectionBubbleProps {
   coords: SelectionCoordinates;
   onDefine: (text: string) => void;
   onSpeak: (text: string) => void;
+  onExpand?: () => void;
   onSelectAll?: () => void;
   isSpeaking?: boolean;
   onClose?: () => void;
@@ -24,6 +25,7 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
   coords,
   onDefine,
   onSpeak,
+  onExpand,
   onSelectAll,
   isSpeaking = false,
 }) => {
@@ -35,7 +37,7 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
     try {
       await navigator.clipboard.writeText(selectedText);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.warn("Failed to copy selected text:", err);
     }
@@ -53,6 +55,14 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
     onSpeak(selectedText);
   };
 
+  const handleExpand = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onExpand) {
+      onExpand();
+    }
+  };
+
   const handleSelectAll = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -63,7 +73,10 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
 
   // Menu dimensions and positioning for clean vertically stacked popup
   const menuWidth = 146;
-  const menuHeight = onSelectAll ? 168 : 128;
+  let itemCount = 3;
+  if (onExpand) itemCount++;
+  if (onSelectAll) itemCount++;
+  const menuHeight = itemCount * 42 + 4;
   const screenPadding = 10;
 
   let leftPos = coords.x - menuWidth / 2;
@@ -95,14 +108,26 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
         zIndex: 99999,
       }}
       className="select-none pointer-events-auto filter drop-shadow-2xl"
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onTouchStart={(e) => {
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+      }}
     >
       {/* Vertically stacked menu items - Above each other */}
       <div className="relative flex flex-col bg-neutral-900/98 dark:bg-neutral-900/98 text-white backdrop-blur-md rounded-2xl border border-neutral-700/80 shadow-2xl overflow-hidden divide-y divide-white/15">
         {/* 1. DEFINE BUTTON */}
         <button
           type="button"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
           onClick={handleDefine}
           onTouchEnd={handleDefine}
           className="w-full flex items-center space-x-2.5 px-3.5 py-2.5 hover:bg-white/15 active:bg-white/25 transition-colors text-xs font-semibold cursor-pointer text-left group"
@@ -115,6 +140,10 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
         {/* 2. SPEAK BUTTON */}
         <button
           type="button"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
           onClick={handleSpeak}
           onTouchEnd={handleSpeak}
           className={`w-full flex items-center space-x-2.5 px-3.5 py-2.5 hover:bg-white/15 active:bg-white/25 transition-colors text-xs font-semibold cursor-pointer text-left ${
@@ -133,6 +162,10 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
         {/* 3. COPY BUTTON */}
         <button
           type="button"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
           onClick={handleCopy}
           onTouchEnd={handleCopy}
           className="w-full flex items-center space-x-2.5 px-3.5 py-2.5 hover:bg-white/15 active:bg-white/25 transition-colors text-xs font-semibold cursor-pointer text-left"
@@ -152,10 +185,32 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
           </span>
         </button>
 
-        {/* 4. SELECT ALL BUTTON */}
+        {/* 4. EXPAND SELECTION BUTTON */}
+        {onExpand && (
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={handleExpand}
+            onTouchEnd={handleExpand}
+            className="w-full flex items-center space-x-2.5 px-3.5 py-2.5 hover:bg-white/15 active:bg-white/25 transition-colors text-xs font-semibold cursor-pointer text-left group"
+            title="Expand selection to sentence or paragraph"
+          >
+            <Maximize2 className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform shrink-0" />
+            <span className="text-[13px] tracking-tight font-medium">Expand</span>
+          </button>
+        )}
+
+        {/* 5. SELECT ALL BUTTON */}
         {onSelectAll && (
           <button
             type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
             onClick={handleSelectAll}
             onTouchEnd={handleSelectAll}
             className="w-full flex items-center space-x-2.5 px-3.5 py-2.5 hover:bg-white/15 active:bg-white/25 transition-colors text-xs font-semibold cursor-pointer text-left"

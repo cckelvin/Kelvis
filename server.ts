@@ -809,7 +809,7 @@ app.post(["/api/voice/groq-stt", "/voice/groq-stt", "/api/voice/stt", "/voice/st
   }
 });
 
-// Interactive Define & Explain Text Endpoint
+// Interactive Define & Explain Text Endpoint (Strictly objective dictionary, zero user profile memory)
 app.post(["/api/define-text", "/define-text"], async (req, res) => {
   try {
     const { text, context, groqApiKey } = req.body;
@@ -822,16 +822,17 @@ app.post(["/api/define-text", "/define-text"], async (req, res) => {
     const gemini = getGeminiClient();
 
     const selectedWord = String(text).trim();
-    const systemPrompt = `You are Kelvis AI's concise dictionary and conceptual explainer.
-Provide a clear, simple, and direct explanation of the selected word, phrase, or concept.
+    const systemPrompt = `You are a pure, objective dictionary and encyclopedic explainer.
 
-Guidelines:
-- Give a direct 1-2 sentence core definition.
-- If relevant, add 1 short sentence on how it's used or a quick example.
-- Keep the response clean, engaging, without unnecessary fluff or excessive headings.`;
+CRITICAL INSTRUCTIONS:
+- You MUST NOT use, reference, or assume any stored user personal profile, user preferences, biography, history, personal identity, or memory.
+- Provide a completely objective, neutral, standard linguistic and conceptual definition.
+- Give a clear, accurate 1-2 sentence core definition.
+- Add 1 brief sentence on typical usage or a short illustrative example if applicable.
+- Keep the response clean, clear, and focused solely on the lexical or technical meaning of the term.`;
 
-    const userPrompt = `Explain and define the following selected text: "${selectedWord}"${
-      context ? `\n\nContext where it appeared:\n"${String(context).slice(0, 500)}"` : ""
+    const userPrompt = `Define and explain the term objectively: "${selectedWord}"${
+      context ? `\n\nContext:\n"${String(context).slice(0, 500)}"` : ""
     }`;
 
     let definition = "";

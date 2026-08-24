@@ -244,6 +244,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const [selectionData, setSelectionData] = useState<{
     text: string;
     coords: SelectionCoordinates;
+    rects?: Array<{ top: number; left: number; width: number; height: number }>;
   } | null>(null);
   const [isDefineModalOpen, setIsDefineModalOpen] = useState(false);
   const [defineWord, setDefineWord] = useState("");
@@ -253,6 +254,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const longPressTimerRef = React.useRef<any>(null);
   const touchStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
   const selectionAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const savedRangeRef = React.useRef<Range | null>(null);
 
   const isUser = message.role === "user";
 
@@ -301,18 +303,102 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     return false;
   };
 
+  // Smart Progressive Range Expander (word -> surrounding clause -> sentence -> paragraph -> full text)
+  const expandRangeProgressively = (range: Range, root: HTMLElement) => {
+    const startNode = range.startContainer;
+    const endNode = range.endContainer;
+
+    if (startNode.nodeType === Node.TEXT_NODE && endNode.nodeType === Node.TEXT_NODE) {
+      const startText = startNode.textContent || "";
+      const endText = endNode.textContent || "";
+      const sOffset = range.startOffset;
+      const eOffset = range.endOffset;
+
+      if (startNode === endNode) {
+        const currentSelected = startText.slice(sOffset, eOffset).trim();
+        const isSingleWord = !/\s/.test(currentSelected);
+
+        // Level 1: Expand single word to surrounding phrase (up to 3 words left and right)
+        if (isSingleWord) {
+          let newStart = sOffset;
+          let wordsBack = 0;
+          while (newStart > 0 && wordsBack < 3) {
+            newStart--;
+            if (/\s/.test(startText[newStart])) wordsBack++;
+          }
+          while (newStart > 0 && /\s/.test(startText[newStart])) {
+            newStart++;
+          }
+
+          let newEnd = eOffset;
+          let wordsFwd = 0;
+          while (newEnd < startText.length && wordsFwd < 3) {
+            newEnd++;
+            if (/\s/.test(startText[newEnd - 1])) wordsFwd++;
+          }
+
+          if (newStart < sOffset || newEnd > eOffset) {
+            range.setStart(startNode, Math.max(0, newStart));
+            range.setEnd(endNode, Math.min(startText.length, newEnd));
+            return;
+          }
+        }
+
+        // Level 2: Expand to sentence boundary (. ! ? \n)
+        let sentStart = sOffset;
+        while (sentStart > 0 && !/[.!?\n]/.test(startText[sentStart - 1])) {
+          sentStart--;
+        }
+        while (sentStart < startText.length && /[\s]/.test(startText[sentStart])) {
+          sentStart++;
+        }
+
+        let sentEnd = eOffset;
+        while (sentEnd < startText.length && !/[.!?\n]/.test(startText[sentEnd])) {
+          sentEnd++;
+        }
+        if (sentEnd < startText.length && /[.!?]/.test(startText[sentEnd])) {
+          sentEnd++;
+        }
+
+        if (sentStart < sOffset || sentEnd > eOffset) {
+          range.setStart(startNode, sentStart);
+          range.setEnd(endNode, sentEnd);
+          return;
+        }
+      }
+    }
+
+    // Level 3: Expand to enclosing block element (paragraph, code block, list item)
+    const parentBlock =
+      range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+        ? (range.commonAncestorContainer as HTMLElement).closest("p, li, pre, blockquote, div, h1, h2, h3, h4, h5, h6")
+        : range.commonAncestorContainer.parentElement?.closest("p, li, pre, blockquote, div, h1, h2, h3, h4, h5, h6");
+
+    if (parentBlock && root.contains(parentBlock) && parentBlock !== root) {
+      const parentRange = document.createRange();
+      parentRange.selectNodeContents(parentBlock);
+      if (parentRange.toString().length > range.toString().length) {
+        range.setStart(parentRange.startContainer, parentRange.startOffset);
+        range.setEnd(parentRange.endContainer, parentRange.endOffset);
+        return;
+      }
+    }
+
+    // Level 4: Expand to entire message
+    range.selectNodeContents(root);
+  };
+
   // Check and update selection coordinates
   const updateSelectionState = React.useCallback(() => {
     if (isUser) return;
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
-      setSelectionData(null);
       return;
     }
 
     const selectedStr = selection.toString().trim();
     if (!selectedStr) {
-      setSelectionData(null);
       return;
     }
 
@@ -326,6 +412,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           const rect = range.getBoundingClientRect();
 
           if (rect && (rect.width > 0 || rect.height > 0)) {
+            savedRangeRef.current = range.cloneRange();
+            const clientRects = Array.from(range.getClientRects())
+              .filter((r) => r.width > 0 && r.height > 0)
+              .map((r) => ({
+                top: r.top,
+                left: r.left,
+                width: r.width,
+                height: r.height,
+              }));
+
             setSelectionData({
               text: selectedStr,
               coords: {
@@ -334,6 +430,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 width: rect.width,
                 height: rect.height,
               },
+              rects: clientRects.length > 0 ? clientRects : [{
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height,
+              }],
             });
             return;
           }
@@ -341,6 +443,56 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       }
     }
   }, [isUser]);
+
+  // Expand Selection Handler
+  const handleExpandSelection = () => {
+    if (!contentRef.current) return;
+    try {
+      let range = savedRangeRef.current ? savedRangeRef.current.cloneRange() : null;
+      const sel = window.getSelection();
+      if (!range && sel && !sel.isCollapsed && sel.rangeCount > 0) {
+        range = sel.getRangeAt(0).cloneRange();
+      }
+      if (!range) return;
+
+      expandRangeProgressively(range, contentRef.current);
+
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+      savedRangeRef.current = range.cloneRange();
+
+      const selectedStr = range.toString().trim();
+      const rect = range.getBoundingClientRect();
+      const clientRects = Array.from(range.getClientRects())
+        .filter((r) => r.width > 0 && r.height > 0)
+        .map((r) => ({
+          top: r.top,
+          left: r.left,
+          width: r.width,
+          height: r.height,
+        }));
+
+      setSelectionData({
+        text: selectedStr,
+        coords: {
+          x: rect.left + rect.width / 2,
+          y: rect.top,
+          width: rect.width,
+          height: rect.height,
+        },
+        rects: clientRects.length > 0 ? clientRects : [{
+          top: rect.top,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height,
+        }],
+      });
+    } catch (e) {
+      console.warn("Expand selection error:", e);
+    }
+  };
 
   // Select all text inside this message paragraph
   const handleSelectAllInMessage = () => {
@@ -359,34 +511,88 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
   useEffect(() => {
     if (isUser) return;
+
     const handleSelectionChange = () => {
-      setTimeout(updateSelectionState, 30);
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed && selection.toString().trim()) {
+        setTimeout(updateSelectionState, 30);
+      }
     };
 
     const handleWindowClick = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
       if (!target) return;
 
-      // Keep selection and popup active when touching inside the message, bubble, or dialogs
+      // Keep selection and popup active when clicking or touching inside the action box, dialogs, or message content
       if (
         target.closest('[data-ai-bubble="true"]') ||
         target.closest('[role="dialog"]') ||
-        target.closest(".select-none") ||
         (contentRef.current && contentRef.current.contains(target))
       ) {
         return;
       }
+
+      // User clicked away apart from the box or selected text: dismiss both
       setSelectionData(null);
+      savedRangeRef.current = null;
+      try {
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+        }
+      } catch (err) {}
+    };
+
+    const handleReposition = () => {
+      if (savedRangeRef.current) {
+        try {
+          const range = savedRangeRef.current;
+          const rect = range.getBoundingClientRect();
+          if (rect && (rect.width > 0 || rect.height > 0)) {
+            const clientRects = Array.from(range.getClientRects())
+              .filter((r) => r.width > 0 && r.height > 0)
+              .map((r) => ({
+                top: r.top,
+                left: r.left,
+                width: r.width,
+                height: r.height,
+              }));
+
+            setSelectionData((prev) => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                coords: {
+                  x: rect.left + rect.width / 2,
+                  y: rect.top,
+                  width: rect.width,
+                  height: rect.height,
+                },
+                rects: clientRects.length > 0 ? clientRects : [{
+                  top: rect.top,
+                  left: rect.left,
+                  width: rect.width,
+                  height: rect.height,
+                }],
+              };
+            });
+          }
+        } catch (e) {}
+      }
     };
 
     document.addEventListener("selectionchange", handleSelectionChange);
     document.addEventListener("mousedown", handleWindowClick);
     document.addEventListener("touchstart", handleWindowClick);
+    window.addEventListener("scroll", handleReposition, true);
+    window.addEventListener("resize", handleReposition);
 
     return () => {
       document.removeEventListener("selectionchange", handleSelectionChange);
       document.removeEventListener("mousedown", handleWindowClick);
       document.removeEventListener("touchstart", handleWindowClick);
+      window.removeEventListener("scroll", handleReposition, true);
+      window.removeEventListener("resize", handleReposition);
       if (selectionAudioRef.current) {
         selectionAudioRef.current.pause();
         selectionAudioRef.current = null;
@@ -1291,6 +1497,26 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         />
       )}
 
+      {/* Persistent Visual Selection Highlight (stays marked even when clicking menu buttons) */}
+      {selectionData && selectionData.rects && !isUser && (
+        <div className="pointer-events-none select-none">
+          {selectionData.rects.map((r, i) => (
+            <div
+              key={i}
+              style={{
+                position: "fixed",
+                top: `${r.top}px`,
+                left: `${r.left}px`,
+                width: `${r.width}px`,
+                height: `${r.height}px`,
+                zIndex: 99980,
+              }}
+              className="bg-sky-500/25 dark:bg-sky-400/30 rounded-xs ring-1 ring-sky-400/50 pointer-events-none"
+            />
+          ))}
+        </div>
+      )}
+
       {/* Phone-Style Floating Action Callout for Selected AI Text */}
       <AnimatePresence>
         {selectionData && !isUser && (
@@ -1299,6 +1525,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             coords={selectionData.coords}
             onDefine={handleOpenDefine}
             onSpeak={handleSpeakSelectedText}
+            onExpand={handleExpandSelection}
             onSelectAll={handleSelectAllInMessage}
             isSpeaking={isSelectionSpeaking}
             onClose={() => setSelectionData(null)}
