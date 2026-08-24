@@ -561,7 +561,7 @@ async function synthesizeGroqTTS(
         model: "canopylabs/orpheus-v1-english",
         input: cleanText,
         voice: selectedGroqVoice,
-        response_format: "mp3",
+        response_format: "wav",
       }),
     });
 
@@ -570,7 +570,7 @@ async function synthesizeGroqTTS(
       const buf = Buffer.from(arrayBuf);
       return {
         audioBase64: buf.toString("base64"),
-        mimeType: response.headers.get("content-type") || "audio/mp3",
+        mimeType: response.headers.get("content-type") || "audio/wav",
       };
     } else {
       const errTxt = await response.text();

@@ -384,7 +384,7 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         if (data.audioBase64) {
-          const audioUrl = `data:${data.mimeType || "audio/mp3"};base64,${data.audioBase64}`;
+          const audioUrl = `data:${data.mimeType || "audio/wav"};base64,${data.audioBase64}`;
           const audio = new Audio(audioUrl);
           activeAudioRef.current = audio;
           audio.onended = () => {
