@@ -13,6 +13,7 @@ import {
   Layers,
   FolderGit2,
   Code2,
+  Brain,
 } from "lucide-react";
 import { ChatSession } from "../types";
 
@@ -29,6 +30,7 @@ interface SidebarProps {
   onOpenApps: () => void;
   onOpenAuth: () => void;
   onOpenCodebase?: () => void;
+  onOpenMemory?: () => void;
   codebaseFileCount?: number;
   userEmail?: string | null;
 }
@@ -46,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenApps,
   onOpenAuth,
   onOpenCodebase,
+  onOpenMemory,
   codebaseFileCount = 0,
   userEmail,
 }) => {
@@ -123,9 +126,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons: Codebase & Connector */}
+        {/* Action Buttons: Codebase, AI Memory & Connector */}
         <div className="px-3 pt-3 pb-1 space-y-1.5">
-          {/* Codebase Button above Connector */}
+          {/* AI Memory Button */}
+          <button
+            type="button"
+            onClick={onOpenMemory}
+            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-neutral-100 text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-700 font-bold text-xs shadow-xs hover:border-black dark:hover:border-white active:scale-[0.98] transition-all cursor-pointer group"
+          >
+            <div className="flex items-center space-x-2">
+              <Brain className="w-4 h-4 shrink-0 text-sky-500 group-hover:scale-110 transition-transform" />
+              <span className="tracking-wide uppercase font-black">AI Memory</span>
+            </div>
+            <span className="text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400">
+              Personalized
+            </span>
+          </button>
+
+          {/* Codebase Button */}
           <button
             type="button"
             onClick={onOpenCodebase}

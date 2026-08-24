@@ -41,6 +41,19 @@ export interface ChatSession {
   model: string;
 }
 
+export interface UserMemory {
+  id?: string;
+  user_email?: string;
+  user_name?: string;
+  interests?: string[];
+  nationality?: string;
+  personal_info?: string;
+  major_projects?: string[];
+  ai_character_judgment?: string;
+  custom_memories?: string[];
+  updated_at?: string;
+}
+
 export interface AppSettings {
   systemInstruction: string;
   searchGrounding: boolean;

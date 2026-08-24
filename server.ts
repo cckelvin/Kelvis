@@ -510,9 +510,24 @@ app.post(["/api/voice/gemini-call", "/voice/gemini-call"], async (req, res) => {
 });
 
 // Groq Neural TTS Helper with canopylabs/orpheus-v1-english
+const GROQ_SUPPORTED_VOICES: Record<string, string> = {
+  autumn: "autumn",
+  diana: "diana",
+  hannah: "hannah",
+  austin: "austin",
+  daniel: "daniel",
+  troy: "troy",
+  orpheus: "autumn",
+  kore: "autumn",
+  puck: "austin",
+  fenrir: "daniel",
+  charon: "troy",
+  zephyr: "hannah",
+};
+
 async function synthesizeGroqTTS(
   text: string,
-  voice = "orpheus",
+  voice = "autumn",
   customApiKey?: string
 ): Promise<{ audioBase64: string; mimeType: string } | null> {
   const apiKey =
@@ -533,6 +548,9 @@ async function synthesizeGroqTTS(
 
     if (!cleanText) return null;
 
+    const normalizedVoice = String(voice || "").toLowerCase().trim();
+    const selectedGroqVoice = GROQ_SUPPORTED_VOICES[normalizedVoice] || "autumn";
+
     const response = await fetch("https://api.groq.com/openai/v1/audio/speech", {
       method: "POST",
       headers: {
@@ -542,7 +560,7 @@ async function synthesizeGroqTTS(
       body: JSON.stringify({
         model: "canopylabs/orpheus-v1-english",
         input: cleanText,
-        voice: voice || "orpheus",
+        voice: selectedGroqVoice,
         response_format: "mp3",
       }),
     });
@@ -718,24 +736,13 @@ app.post(["/api/define-text", "/define-text"], async (req, res) => {
     const gemini = getGeminiClient();
 
     const selectedWord = String(text).trim();
-    const systemPrompt = `You are Kelvis AI's instant concept definer and intellectual dictionary.
-When given a selected word, phrase, technical term, expression, or code snippet, provide an authoritative, clear, engaging, and structured explanation.
+    const systemPrompt = `You are Kelvis AI's concise dictionary and conceptual explainer.
+Provide a clear, simple, and direct explanation of the selected word, phrase, or concept.
 
-Structure your markdown response with clean headers and bullet points:
-### 📖 Definition & Core Meaning
-Direct, precise, intuitive explanation of what this term means.
-
-### 💡 Deep Context & Significance
-Explain how and why it is used, its significance in programming, mathematics, finance, language, or conversation.
-
-### 🛠️ Practical Examples & Usage
-Provide 2-3 concise, realistic examples or code snippets demonstrating how it applies.
-
-### 🔗 Key Takeaways & Related Terms
-• Core takeaway summary
-• Closely related words or concepts to explore
-
-Keep formatting sharp, bold, professional, and accessible.`;
+Guidelines:
+- Give a direct 1-2 sentence core definition.
+- If relevant, add 1 short sentence on how it's used or a quick example.
+- Keep the response clean, engaging, without unnecessary fluff or excessive headings.`;
 
     const userPrompt = `Explain and define the following selected text: "${selectedWord}"${
       context ? `\n\nContext where it appeared:\n"${String(context).slice(0, 500)}"` : ""
@@ -796,15 +803,15 @@ app.post(["/api/voice/gemini-tts", "/voice/gemini-tts"], async (req, res) => {
       return;
     }
 
-    // Try Groq TTS first as per mandate
-    const groqRes = await synthesizeGroqTTS(text, "orpheus", customApiKey);
+    // 1. Try Groq TTS first as per mandate
+    const groqRes = await synthesizeGroqTTS(text, "autumn", customApiKey);
     if (groqRes) {
       res.json({
         success: true,
         model: "canopylabs/orpheus-v1-english",
         audioBase64: groqRes.audioBase64,
         mimeType: groqRes.mimeType,
-        voice: "orpheus",
+        voice: "autumn",
       });
       return;
     }
@@ -825,35 +832,43 @@ app.post(["/api/voice/gemini-tts", "/voice/gemini-tts"], async (req, res) => {
     const validVoices = ["Kore", "Puck", "Fenrir", "Charon", "Zephyr"];
     const selectedVoice = validVoices.includes(voiceName) ? voiceName : "Kore";
 
-    const ttsResponse = await gemini.models.generateContent({
-      model: "gemini-3.1-flash-tts-preview",
-      contents: [{ parts: [{ text: cleanText }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: selectedVoice },
+    try {
+      const ttsResponse = await gemini.models.generateContent({
+        model: "gemini-3.1-flash-tts-preview",
+        contents: [{ parts: [{ text: cleanText }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: selectedVoice },
+            },
           },
         },
-      },
-    });
+      });
 
-    const rawPcm = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!rawPcm) {
-      res.status(500).json({ error: "No audio stream returned by Gemini TTS" });
-      return;
+      const rawPcm = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!rawPcm) {
+        res.status(500).json({ error: "No audio stream returned by Gemini TTS" });
+        return;
+      }
+
+      const pcmBuf = Buffer.from(rawPcm, "base64");
+      const wavBuf = pcmToWav(pcmBuf, 24000);
+
+      res.json({
+        success: true,
+        model: "gemini-3.1-flash-tts-preview",
+        audioBase64: wavBuf.toString("base64"),
+        mimeType: "audio/wav",
+        voice: selectedVoice,
+      });
+    } catch (geminiErr: any) {
+      console.warn("Gemini TTS quota or API limit reached:", geminiErr.message);
+      res.status(429).json({
+        error: "Neural TTS quota limit reached. Browser fallback speech will be used.",
+        fallbackToWebSpeech: true,
+      });
     }
-
-    const pcmBuf = Buffer.from(rawPcm, "base64");
-    const wavBuf = pcmToWav(pcmBuf, 24000);
-
-    res.json({
-      success: true,
-      model: "gemini-3.1-flash-tts-preview",
-      audioBase64: wavBuf.toString("base64"),
-      mimeType: "audio/wav",
-      voice: selectedVoice,
-    });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "TTS generation failed" });
   }
@@ -870,7 +885,8 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
       history = [],
       model = "openai/gpt-oss-120b",
       files = [],
-      searchGrounding = true,
+      searchGrounding = false,
+      userMemory,
       systemInstruction,
       googleApiKey,
       googleCx,
@@ -922,10 +938,39 @@ app.post(["/api/chat", "/chat"], async (req, res) => {
     // Prepare messages for Groq completion
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
 
-    const defaultStructuredSystemInstruction = `You are Kelvis, an ultra-intelligent, creative, and world-class AI researcher and software architect powered by Groq's high-speed reasoning models (openai/gpt-oss-120b and openai/gpt-oss-20b).
+    // Format user memory if provided
+    let memoryPromptSegment = "";
+    if (userMemory) {
+      if (typeof userMemory === "string") {
+        memoryPromptSegment = userMemory;
+      } else if (typeof userMemory === "object") {
+        const memParts: string[] = [];
+        if (userMemory.user_name) memParts.push(`- User's Name: ${userMemory.user_name}`);
+        if (userMemory.nationality) memParts.push(`- Nationality / Location: ${userMemory.nationality}`);
+        if (userMemory.interests && userMemory.interests.length > 0) memParts.push(`- Core Interests: ${userMemory.interests.join(", ")}`);
+        if (userMemory.personal_info) memParts.push(`- Personal Background & Preferences: ${userMemory.personal_info}`);
+        if (userMemory.major_projects && userMemory.major_projects.length > 0) memParts.push(`- Major Projects & Goals: ${userMemory.major_projects.join(", ")}`);
+        if (userMemory.ai_character_judgment) memParts.push(`- AI Assessment of User's Persona: ${userMemory.ai_character_judgment}`);
+        if (userMemory.custom_memories && userMemory.custom_memories.length > 0) memParts.push(`- Remembered Facts:\n  • ${userMemory.custom_memories.join("\n  • ")}`);
+        if (memParts.length > 0) {
+          memoryPromptSegment = `### 🧠 PERSISTENT USER MEMORY (ChatGPT-Style Memory Engine):\nYou remember this about the user. Deeply personalize all reasoning, tone, and advice accordingly:\n${memParts.join("\n")}\n`;
+        }
+      }
+    }
+
+    const defaultStructuredSystemInstruction = `You are Kelvis, an ultra-intelligent, creative, empathetic, and world-class AI companion, thinker, and software architect powered by Groq's high-speed reasoning models (openai/gpt-oss-120b and openai/gpt-oss-20b).
+
+${memoryPromptSegment ? `${memoryPromptSegment}\n` : ""}### 💬 CONVERSATIONAL INTELLIGENCE, PERSONAL QUESTIONS & SEAMLESS FOLLOW-UPS:
+1. **Understand Personal & Conversational Queries with Empathy & Context**:
+   - Actively understand questions about the user, their feelings, everyday situations, personal ideas, advice, philosophies, and background.
+   - When the user asks conversational or personal questions, respond warmly, attentively, and insightfully without needing external web searches.
+2. **Mastery of Multi-Turn Follow-Ups**:
+   - Always maintain sharp, unbroken awareness of the entire conversation history.
+   - When the user asks short or ambiguous follow-up questions (e.g. "what do you think?", "why that choice?", "can you explain more?", "what about the second one?", "why did you say that?"), immediately connect to the preceding thoughts, code, or topics in the chat.
+   - Never lose context or ask the user to repeat themselves when the answer is clear from the conversation history.
 
 ### 🧠 COGNITIVE REASONING & RESPONSE EXCELLENCE:
-1. **Perplexity-Grade Clarity & Depth**: Deliver clear, rigorous, well-structured, and insightful answers. Use crisp headings, executive summaries, tabular comparisons, bulleted findings, and concrete takeaways.
+1. **Perplexity-Grade Clarity & Depth**: Deliver clear, rigorous, well-structured, and insightful answers. Use crisp headings, executive summaries, tabular comparisons, bulleted findings, and concrete takeaways where appropriate.
 2. **Deep File & Code Analysis Engine**:
    When files or code are provided, provide an exhaustive, high-intelligence analysis:
    - **Executive Summary**: Core purpose, schema, data scale, or code architecture.
@@ -1045,15 +1090,16 @@ When the user in this chat or ANY other chat asks to edit, modify, fix, or updat
       userMessageContent += fileContext;
     }
 
-    // Live Web Search Grounding trigger
+    // Live Web Search Grounding trigger (only search when searchGrounding toggle is explicitly ON or explicit web search command is provided)
     let fetchedSources: Array<{ title: string; url: string; domain: string; snippet: string }> = [];
-    const needsSearch =
-      searchGrounding ||
-      /search|latest|recent|news|current|today|2025|2026|update|price|who is|what is|competitor|website|bouk|info|data|google/i.test(
-        prompt || ""
-      );
+    const isExplicitSearchQuery = Boolean(
+      searchGrounding === true ||
+      /^(search the web for|browse the web for|look up on google:|\/search\s+)/i.test(
+        (prompt || "").trim()
+      )
+    );
 
-    if (needsSearch && prompt) {
+    if (isExplicitSearchQuery && prompt) {
       try {
         fetchedSources = await fetchLiveWebResults(prompt, googleApiKey, googleCx);
       } catch (sErr) {

@@ -123,7 +123,42 @@ CREATE POLICY "Users can delete messages from their sessions."
     )
   );
 
--- 4. STORAGE BUCKET CONFIGURATION FOR FILE ATTACHMENTS
+-- 4. USER MEMORIES TABLE (ChatGPT-Style Persistent Knowledge Engine)
+CREATE TABLE IF NOT EXISTS public.user_memories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_email TEXT,
+  user_name TEXT,
+  interests TEXT[] DEFAULT '{}',
+  nationality TEXT,
+  personal_info TEXT,
+  major_projects TEXT[] DEFAULT '{}',
+  ai_character_judgment TEXT,
+  custom_memories TEXT[] DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS for User Memories
+ALTER TABLE public.user_memories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own memory profile."
+  ON public.user_memories FOR SELECT
+  USING (auth.uid() = user_id OR user_id IS NULL);
+
+CREATE POLICY "Users can insert their own memory profile."
+  ON public.user_memories FOR INSERT
+  WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
+
+CREATE POLICY "Users can update their own memory profile."
+  ON public.user_memories FOR UPDATE
+  USING (auth.uid() = user_id OR user_id IS NULL);
+
+CREATE POLICY "Users can delete their own memory profile."
+  ON public.user_memories FOR DELETE
+  USING (auth.uid() = user_id OR user_id IS NULL);
+
+-- 5. STORAGE BUCKET CONFIGURATION FOR FILE ATTACHMENTS
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('chat-attachments', 'chat-attachments', true)
 ON CONFLICT (id) DO NOTHING;
@@ -135,7 +170,6 @@ CREATE POLICY "Public Read Access for Chat Attachments"
 CREATE POLICY "Authenticated Users Upload Chat Attachments"
   ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'chat-attachments');
-
 `;
 
 export const SqlSchemaModal: React.FC<SqlSchemaModalProps> = ({ isOpen, onClose }) => {

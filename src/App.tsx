@@ -16,8 +16,9 @@ import { AppsModal } from "./components/AppsModal";
 import { QuickQuizDrawer } from "./components/QuickQuizDrawer";
 import { CodebaseModal } from "./components/CodebaseModal";
 import { CodePreviewModal, ProjectFile } from "./components/CodePreviewModal";
+import { MemoryModal } from "./components/MemoryModal";
 import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack, QuizPayload } from "./types";
-import { Trash2, Download, RotateCcw, Sparkles } from "lucide-react";
+import { Trash2, Download, RotateCcw, Sparkles, Brain } from "lucide-react";
 import {
   fetchSupabaseSessions,
   saveSupabaseSession,
@@ -32,6 +33,7 @@ import {
   syncFilesFromAiResponse,
   getCodebaseContextForPrompt,
 } from "./utils/codebaseStore";
+import { loadUserMemory } from "./utils/memoryStore";
 
 const INITIAL_SESSIONS: ChatSession[] = [
   {
@@ -101,6 +103,7 @@ export default function App() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState<boolean>(false);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
   const [isSqlModalOpen, setIsSqlModalOpen] = useState<boolean>(false);
+  const [isMemoryOpen, setIsMemoryOpen] = useState<boolean>(false);
   const [isAppsModalOpen, setIsAppsModalOpen] = useState<boolean>(false);
   const [isSpotifyOpen, setIsSpotifyOpen] = useState<boolean>(false);
   const [isBinanceModalOpen, setIsBinanceModalOpen] = useState<boolean>(false);
@@ -122,6 +125,7 @@ export default function App() {
 
   useEffect(() => {
     (window as any).openSqlModal = () => setIsSqlModalOpen(true);
+    (window as any).openMemoryModal = () => setIsMemoryOpen(true);
     const handleCodebaseSync = () => {
       setCodebaseFiles(loadCodebase());
     };
@@ -372,7 +376,7 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: cleanSpoken.slice(0, 1000),
-          voice: "orpheus",
+          voice: "autumn",
           groqApiKey: settings.customGroqApiKey,
         }),
       });
@@ -631,7 +635,8 @@ export default function App() {
           history: historyPayload,
           model: modelToUse,
           files: currentFiles,
-          searchGrounding: true,
+          searchGrounding: false,
+          userMemory: loadUserMemory(),
           systemInstruction: settings.systemInstruction,
           googleApiKey: settings.customGoogleApiKey,
           googleCx: settings.customGoogleCx,
@@ -828,6 +833,7 @@ export default function App() {
         onOpenApps={() => setIsAppsModalOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenCodebase={() => setIsCodebaseOpen(true)}
+        onOpenMemory={() => setIsMemoryOpen(true)}
         codebaseFileCount={codebaseFiles.length}
         userEmail={userEmail}
       />
@@ -852,6 +858,16 @@ export default function App() {
               onClick={() => setShowOptionsMenu(false)}
             />
             <div className="absolute right-4 top-14 w-56 bg-white dark:bg-black border border-black/30 dark:border-white/30 rounded-2xl shadow-xl z-40 py-2 text-xs select-none">
+              <button
+                onClick={() => {
+                  setShowOptionsMenu(false);
+                  setIsMemoryOpen(true);
+                }}
+                className="w-full text-left px-4 py-2 hover:bg-black/5 dark:hover:bg-white/10 flex items-center space-x-2 text-black dark:text-white font-bold"
+              >
+                <Brain className="w-4 h-4 text-sky-500" />
+                <span>AI Memory Profile</span>
+              </button>
               <button
                 onClick={handleClearMessages}
                 className="w-full text-left px-4 py-2 hover:bg-black/5 dark:hover:bg-white/10 flex items-center space-x-2 text-black dark:text-white font-bold"
@@ -1128,6 +1144,12 @@ export default function App() {
           initialActiveFile={previewModalData.initialFile}
         />
       )}
+
+      {/* ChatGPT-Style User Memory & Knowledge Engine Modal */}
+      <MemoryModal
+        isOpen={isMemoryOpen}
+        onClose={() => setIsMemoryOpen(false)}
+      />
     </div>
   );
 }

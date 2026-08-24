@@ -375,7 +375,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     }
   }, [isUser]);
 
-  // Handle interactive drag handles to expand/shrink text selection
+  // Handle interactive drag handles to expand/shrink text selection like Perplexity
   const handleDragHandleMove = (point: { x: number; y: number }, handleType: "start" | "end") => {
     let targetRange: Range | null = null;
     if ((document as any).caretRangeFromPoint) {
@@ -391,37 +391,50 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
     if (!targetRange || !targetRange.startContainer) return;
 
+    // Check if target container is inside this message
+    if (contentRef.current && !contentRef.current.contains(targetRange.startContainer)) {
+      return;
+    }
+
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
 
     const currentRange = selection.getRangeAt(0);
     const newRange = document.createRange();
 
-    if (handleType === "start") {
-      try {
-        newRange.setStart(targetRange.startContainer, targetRange.startOffset);
-        newRange.setEnd(currentRange.endContainer, currentRange.endOffset);
-      } catch (e) {
-        try {
+    try {
+      if (handleType === "start") {
+        const compare = currentRange.endContainer.compareDocumentPosition(targetRange.startContainer);
+        if (
+          targetRange.startContainer === currentRange.endContainer
+            ? targetRange.startOffset <= currentRange.endOffset
+            : Boolean(compare & Node.DOCUMENT_POSITION_PRECEDING) || !(compare & Node.DOCUMENT_POSITION_FOLLOWING)
+        ) {
+          newRange.setStart(targetRange.startContainer, targetRange.startOffset);
+          newRange.setEnd(currentRange.endContainer, currentRange.endOffset);
+        } else {
           newRange.setStart(currentRange.endContainer, currentRange.endOffset);
           newRange.setEnd(targetRange.startContainer, targetRange.startOffset);
-        } catch (err) {}
-      }
-    } else {
-      try {
-        newRange.setStart(currentRange.startContainer, currentRange.startOffset);
-        newRange.setEnd(targetRange.startContainer, targetRange.startOffset);
-      } catch (e) {
-        try {
+        }
+      } else {
+        const compare = currentRange.startContainer.compareDocumentPosition(targetRange.startContainer);
+        if (
+          targetRange.startContainer === currentRange.startContainer
+            ? targetRange.startOffset >= currentRange.startOffset
+            : Boolean(compare & Node.DOCUMENT_POSITION_FOLLOWING) || !(compare & Node.DOCUMENT_POSITION_PRECEDING)
+        ) {
+          newRange.setStart(currentRange.startContainer, currentRange.startOffset);
+          newRange.setEnd(targetRange.startContainer, targetRange.startOffset);
+        } else {
           newRange.setStart(targetRange.startContainer, targetRange.startOffset);
           newRange.setEnd(currentRange.startContainer, currentRange.startOffset);
-        } catch (err) {}
+        }
       }
-    }
 
-    selection.removeAllRanges();
-    selection.addRange(newRange);
-    updateSelectionState();
+      selection.removeAllRanges();
+      selection.addRange(newRange);
+      updateSelectionState();
+    } catch (e) {}
   };
 
   useEffect(() => {
@@ -431,13 +444,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     };
 
     const handleWindowClick = (e: MouseEvent | TouchEvent) => {
-      // Keep selection and pop up until user clicks/taps outside selection and outside controls
       const target = e.target as HTMLElement;
+      if (!target) return;
+
+      // Keep selection and popup active when touching inside the message, bubble, handles, or dialogs
       if (
-        target &&
-        (target.closest(".select-none") ||
-          target.closest('[data-ai-bubble="true"]') ||
-          target.closest('[role="dialog"]'))
+        target.closest('[data-ai-bubble="true"]') ||
+        target.closest('[data-drag-handle="true"]') ||
+        target.closest('[role="dialog"]') ||
+        target.closest(".select-none") ||
+        (contentRef.current && contentRef.current.contains(target))
       ) {
         return;
       }
@@ -514,7 +530,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: cleanWord,
-          voice: "orpheus",
+          voice: "autumn",
         }),
       });
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { motion } from "motion/react";
 import { Sparkles, Volume2, Copy, Check, Loader2 } from "lucide-react";
 
@@ -32,6 +32,7 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
   onDragHandleMove,
 }) => {
   const [copied, setCopied] = useState(false);
+  const isDraggingRef = useRef(false);
 
   const handleCopy = async (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
@@ -57,22 +58,32 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
     onSpeak(selectedText);
   };
 
-  // Drag handle touch/mouse handlers
-  const handleHandleTouchStart = (e: React.TouchEvent, handleType: "start" | "end") => {
+  // Pointer drag listeners using setPointerCapture for smooth mobile/desktop tracking
+  const handlePointerDown = (handleType: "start" | "end") => (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
-    const touch = e.touches[0];
+    e.preventDefault();
+    isDraggingRef.current = true;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
     if (onDragHandleMove) {
-      onDragHandleMove({ x: touch.clientX, y: touch.clientY }, handleType);
+      onDragHandleMove({ x: e.clientX, y: e.clientY }, handleType);
     }
   };
 
-  const handleHandleTouchMove = (e: React.TouchEvent, handleType: "start" | "end") => {
+  const handlePointerMove = (handleType: "start" | "end") => (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
     e.stopPropagation();
     e.preventDefault();
-    const touch = e.touches[0];
     if (onDragHandleMove) {
-      onDragHandleMove({ x: touch.clientX, y: touch.clientY }, handleType);
+      onDragHandleMove({ x: e.clientX, y: e.clientY }, handleType);
     }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    isDraggingRef.current = false;
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch (err) {}
   };
 
   // Safe screen positioning for square vertical pop-up
@@ -96,9 +107,9 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
 
   return (
     <>
-      {/* Visual Selection Highlights with Thick Light Blue Borders & Drag Handles */}
+      {/* Visual Selection Highlights with Thick Light Blue Borders & Perplexity-Style Fluid Drag Handles */}
       {coords.rects && coords.rects.length > 0 && (
-        <div className="fixed inset-0 pointer-events-none z-[99990]">
+        <div className="fixed inset-0 pointer-events-none z-[99990]" data-ai-bubble="true">
           {coords.rects.map((r, i) => (
             <div
               key={i}
@@ -109,81 +120,65 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
                 width: `${r.width}px`,
                 height: `${r.height}px`,
               }}
-              className="border-t-2 border-b-2 border-sky-400 dark:border-sky-400 bg-sky-400/15 pointer-events-none"
+              className="border-t-2 border-b-2 border-sky-400 dark:border-sky-400 bg-sky-400/20 pointer-events-none"
             >
               {/* Thick Light Blue vertical line on first rect left edge */}
               {i === 0 && (
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-sky-400 dark:bg-sky-400 shadow-sm" />
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-sky-400 dark:bg-sky-400 shadow-sm" />
               )}
               {/* Thick Light Blue vertical line on last rect right edge */}
               {i === coords.rects!.length - 1 && (
-                <div className="absolute right-0 top-0 bottom-0 w-1 bg-sky-400 dark:bg-sky-400 shadow-sm" />
+                <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-sky-400 dark:bg-sky-400 shadow-sm" />
               )}
             </div>
           ))}
 
-          {/* Left / Start Drag Handle Pin */}
+          {/* Left / Start Drag Handle Pin with generous touch target */}
           {coords.startRect && (
             <div
+              data-drag-handle="true"
               style={{
                 position: "fixed",
-                left: `${coords.startRect.x - 7}px`,
-                top: `${coords.startRect.y - 12}px`,
+                left: `${coords.startRect.x - 16}px`,
+                top: `${coords.startRect.y - 20}px`,
+                width: "32px",
+                height: "40px",
               }}
-              className="pointer-events-auto cursor-ew-resize select-none touch-none z-[99995]"
-              onTouchStart={(e) => handleHandleTouchStart(e, "start")}
-              onTouchMove={(e) => handleHandleTouchMove(e, "start")}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                const onMouseMove = (moveEv: MouseEvent) => {
-                  if (onDragHandleMove) {
-                    onDragHandleMove({ x: moveEv.clientX, y: moveEv.clientY }, "start");
-                  }
-                };
-                const onMouseUp = () => {
-                  window.removeEventListener("mousemove", onMouseMove);
-                  window.removeEventListener("mouseup", onMouseUp);
-                };
-                window.addEventListener("mousemove", onMouseMove);
-                window.addEventListener("mouseup", onMouseUp);
-              }}
+              className="pointer-events-auto cursor-ew-resize select-none touch-none z-[99995] flex items-center justify-center group"
+              onPointerDown={handlePointerDown("start")}
+              onPointerMove={handlePointerMove("start")}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              title="Drag to expand selection"
             >
               <div className="flex flex-col items-center">
-                <div className="w-3.5 h-3.5 bg-sky-500 rounded-none border border-white dark:border-black shadow-md" />
-                <div className="w-0.5 h-3.5 bg-sky-500" />
+                <div className="w-4.5 h-4.5 bg-sky-500 rounded-full border-2 border-white dark:border-black shadow-lg group-hover:scale-125 transition-transform" />
+                <div className="w-1.5 h-4 bg-sky-500 rounded-full" />
               </div>
             </div>
           )}
 
-          {/* Right / End Drag Handle Pin */}
+          {/* Right / End Drag Handle Pin with generous touch target */}
           {coords.endRect && (
             <div
+              data-drag-handle="true"
               style={{
                 position: "fixed",
-                left: `${coords.endRect.x - 7}px`,
-                top: `${coords.endRect.y + coords.endRect.height - 2}px`,
+                left: `${coords.endRect.x - 16}px`,
+                top: `${coords.endRect.y + coords.endRect.height - 20}px`,
+                width: "32px",
+                height: "40px",
               }}
-              className="pointer-events-auto cursor-ew-resize select-none touch-none z-[99995]"
-              onTouchStart={(e) => handleHandleTouchStart(e, "end")}
-              onTouchMove={(e) => handleHandleTouchMove(e, "end")}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                const onMouseMove = (moveEv: MouseEvent) => {
-                  if (onDragHandleMove) {
-                    onDragHandleMove({ x: moveEv.clientX, y: moveEv.clientY }, "end");
-                  }
-                };
-                const onMouseUp = () => {
-                  window.removeEventListener("mousemove", onMouseMove);
-                  window.removeEventListener("mouseup", onMouseUp);
-                };
-                window.addEventListener("mousemove", onMouseMove);
-                window.addEventListener("mouseup", onMouseUp);
-              }}
+              className="pointer-events-auto cursor-ew-resize select-none touch-none z-[99995] flex items-center justify-center group"
+              onPointerDown={handlePointerDown("end")}
+              onPointerMove={handlePointerMove("end")}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              title="Drag to expand selection"
             >
               <div className="flex flex-col items-center">
-                <div className="w-0.5 h-3.5 bg-sky-500" />
-                <div className="w-3.5 h-3.5 bg-sky-500 rounded-none border border-white dark:border-black shadow-md" />
+                <div className="w-1.5 h-4 bg-sky-500 rounded-full" />
+                <div className="w-4.5 h-4.5 bg-sky-500 rounded-full border-2 border-white dark:border-black shadow-lg group-hover:scale-125 transition-transform" />
               </div>
             </div>
           )}
@@ -192,6 +187,7 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
 
       {/* Pop-up: Square, straight-edge box with vertical stacked buttons */}
       <motion.div
+        data-ai-bubble="true"
         initial={{ opacity: 0, scale: 0.92, y: isAbove ? 6 : -6 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.92, y: isAbove ? 4 : -4 }}
@@ -254,18 +250,13 @@ export const TextSelectionBubble: React.FC<TextSelectionBubbleProps> = ({
             title="Copy selected text"
           >
             {copied ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-400 dark:text-emerald-600 stroke-[3] shrink-0" />
-                <span className="text-emerald-300 dark:text-emerald-700 font-extrabold text-[13px]">
-                  Copied
-                </span>
-              </>
+              <Check className="w-4 h-4 text-emerald-400 stroke-[3] shrink-0" />
             ) : (
-              <>
-                <Copy className="w-4 h-4 shrink-0" />
-                <span className="font-extrabold tracking-tight text-[13px]">Copy</span>
-              </>
+              <Copy className="w-4 h-4 shrink-0" />
             )}
+            <span className="font-extrabold tracking-tight text-[13px]">
+              {copied ? "Copied!" : "Copy"}
+            </span>
           </button>
         </div>
       </motion.div>
