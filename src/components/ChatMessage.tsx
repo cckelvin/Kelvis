@@ -306,11 +306,13 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     if (isUser) return;
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
+      setSelectionData(null);
       return;
     }
 
     const selectedStr = selection.toString().trim();
     if (!selectedStr) {
+      setSelectionData(null);
       return;
     }
 
@@ -322,38 +324,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         try {
           const range = selection.getRangeAt(0);
           const rect = range.getBoundingClientRect();
-          const clientRectList = range.getClientRects();
-          const rects: { x: number; y: number; width: number; height: number }[] = [];
-          for (let i = 0; i < clientRectList.length; i++) {
-            const cr = clientRectList[i];
-            if (cr.width > 0 && cr.height > 0) {
-              rects.push({
-                x: cr.left,
-                y: cr.top,
-                width: cr.width,
-                height: cr.height,
-              });
-            }
-          }
-
-          const firstRect = rects[0] || {
-            x: rect.left,
-            y: rect.top,
-            width: rect.width,
-            height: rect.height,
-          };
-          const lastRect = rects[rects.length - 1] || firstRect;
-
-          const startRect = {
-            x: firstRect.x,
-            y: firstRect.y,
-            height: firstRect.height,
-          };
-          const endRect = {
-            x: lastRect.x + lastRect.width,
-            y: lastRect.y,
-            height: lastRect.height,
-          };
 
           if (rect && (rect.width > 0 || rect.height > 0)) {
             setSelectionData({
@@ -363,9 +333,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 y: rect.top,
                 width: rect.width,
                 height: rect.height,
-                startRect,
-                endRect,
-                rects,
               },
             });
             return;
@@ -375,65 +342,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     }
   }, [isUser]);
 
-  // Handle interactive drag handles to expand/shrink text selection like Perplexity
-  const handleDragHandleMove = (point: { x: number; y: number }, handleType: "start" | "end") => {
-    let targetRange: Range | null = null;
-    if ((document as any).caretRangeFromPoint) {
-      targetRange = (document as any).caretRangeFromPoint(point.x, point.y);
-    } else if ((document as any).caretPositionFromPoint) {
-      const pos = (document as any).caretPositionFromPoint(point.x, point.y);
-      if (pos && pos.offsetNode) {
-        targetRange = document.createRange();
-        targetRange.setStart(pos.offsetNode, pos.offset);
-        targetRange.collapse(true);
-      }
-    }
-
-    if (!targetRange || !targetRange.startContainer) return;
-
-    // Check if target container is inside this message
-    if (contentRef.current && !contentRef.current.contains(targetRange.startContainer)) {
-      return;
-    }
-
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-
-    const currentRange = selection.getRangeAt(0);
-    const newRange = document.createRange();
-
+  // Select all text inside this message paragraph
+  const handleSelectAllInMessage = () => {
+    if (!contentRef.current) return;
     try {
-      if (handleType === "start") {
-        const compare = currentRange.endContainer.compareDocumentPosition(targetRange.startContainer);
-        if (
-          targetRange.startContainer === currentRange.endContainer
-            ? targetRange.startOffset <= currentRange.endOffset
-            : Boolean(compare & Node.DOCUMENT_POSITION_PRECEDING) || !(compare & Node.DOCUMENT_POSITION_FOLLOWING)
-        ) {
-          newRange.setStart(targetRange.startContainer, targetRange.startOffset);
-          newRange.setEnd(currentRange.endContainer, currentRange.endOffset);
-        } else {
-          newRange.setStart(currentRange.endContainer, currentRange.endOffset);
-          newRange.setEnd(targetRange.startContainer, targetRange.startOffset);
-        }
-      } else {
-        const compare = currentRange.startContainer.compareDocumentPosition(targetRange.startContainer);
-        if (
-          targetRange.startContainer === currentRange.startContainer
-            ? targetRange.startOffset >= currentRange.startOffset
-            : Boolean(compare & Node.DOCUMENT_POSITION_FOLLOWING) || !(compare & Node.DOCUMENT_POSITION_PRECEDING)
-        ) {
-          newRange.setStart(currentRange.startContainer, currentRange.startOffset);
-          newRange.setEnd(targetRange.startContainer, targetRange.startOffset);
-        } else {
-          newRange.setStart(targetRange.startContainer, targetRange.startOffset);
-          newRange.setEnd(currentRange.startContainer, currentRange.startOffset);
-        }
+      const range = document.createRange();
+      range.selectNodeContents(contentRef.current);
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(range);
+        setTimeout(updateSelectionState, 30);
       }
-
-      selection.removeAllRanges();
-      selection.addRange(newRange);
-      updateSelectionState();
     } catch (e) {}
   };
 
@@ -447,10 +367,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       const target = e.target as HTMLElement;
       if (!target) return;
 
-      // Keep selection and popup active when touching inside the message, bubble, handles, or dialogs
+      // Keep selection and popup active when touching inside the message, bubble, or dialogs
       if (
         target.closest('[data-ai-bubble="true"]') ||
-        target.closest('[data-drag-handle="true"]') ||
         target.closest('[role="dialog"]') ||
         target.closest(".select-none") ||
         (contentRef.current && contentRef.current.contains(target))
@@ -1372,7 +1291,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         />
       )}
 
-      {/* Small Pop Bubble Shaped Square for Selected AI Text */}
+      {/* Phone-Style Floating Action Callout for Selected AI Text */}
       <AnimatePresence>
         {selectionData && !isUser && (
           <TextSelectionBubble
@@ -1380,9 +1299,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             coords={selectionData.coords}
             onDefine={handleOpenDefine}
             onSpeak={handleSpeakSelectedText}
+            onSelectAll={handleSelectAllInMessage}
             isSpeaking={isSelectionSpeaking}
             onClose={() => setSelectionData(null)}
-            onDragHandleMove={handleDragHandleMove}
           />
         )}
       </AnimatePresence>

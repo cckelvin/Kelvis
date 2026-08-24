@@ -697,6 +697,63 @@ app.post(["/api/voice/groq-tts", "/voice/groq-tts", "/api/voice/tts", "/voice/tt
   }
 });
 
+// Dedicated Gemini TTS Endpoint
+app.post(["/api/voice/gemini-tts", "/voice/gemini-tts"], async (req, res) => {
+  try {
+    const { text, voice = "Kore", customApiKey } = req.body;
+    if (!text || !String(text).trim()) {
+      res.status(400).json({ error: "Text is required for TTS" });
+      return;
+    }
+
+    const cleanText = String(text)
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/[*_#`~[\]()]/g, "")
+      .slice(0, 1000)
+      .trim();
+
+    const gemini = getGeminiClient(customApiKey);
+    if (!gemini) {
+      res.status(500).json({ error: "Gemini API key is not configured" });
+      return;
+    }
+
+    const validVoices = ["Kore", "Puck", "Fenrir", "Charon", "Zephyr"];
+    const selectedVoice = validVoices.includes(voice) ? voice : "Kore";
+    const ttsResponse = await gemini.models.generateContent({
+      model: "gemini-3.1-flash-tts-preview",
+      contents: [{ parts: [{ text: cleanText.slice(0, 800) }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: selectedVoice },
+          },
+        },
+      },
+    });
+
+    const rawPcm = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (rawPcm) {
+      const pcmBuf = Buffer.from(rawPcm, "base64");
+      const wavBuf = pcmToWav(pcmBuf, 24000);
+      res.json({
+        success: true,
+        model: "gemini-3.1-flash-tts-preview",
+        audioBase64: wavBuf.toString("base64"),
+        mimeType: "audio/wav",
+        voice: selectedVoice,
+      });
+      return;
+    }
+
+    res.status(500).json({ error: "No audio stream returned from Gemini TTS" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Gemini TTS generation failed" });
+  }
+});
+
 // Dedicated Groq STT Endpoint (whisper-large-v3)
 app.post(["/api/voice/groq-stt", "/voice/groq-stt", "/api/voice/stt", "/voice/stt"], async (req, res) => {
   try {
