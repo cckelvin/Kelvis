@@ -75,6 +75,32 @@ function normalizeGroqModelName(requestedModel?: string): string {
   return requestedModel.replace(/^groq\//, "");
 }
 
+// Helper to determine if Google CSE / web search is necessary for a prompt
+function isSearchNecessary(prompt: string, searchGrounding?: boolean): boolean {
+  if (searchGrounding) return true;
+  if (!prompt || typeof prompt !== "string") return false;
+  const p = prompt.trim().toLowerCase();
+
+  // 1. Explicit search commands
+  if (
+    /^(search\s+|browse\s+|look\s*up|google:|find\s+on\s+google|\/search\b)/i.test(p) ||
+    /\b(search the web|browse the internet|look up on google|search google for)\b/i.test(p)
+  ) {
+    return true;
+  }
+
+  // 2. Real-time / temporal / current events / news / price / weather queries that require external ground truth
+  if (
+    /\b(what happened (today|recently|this week|in 2024|in 2025|in 2026))\b/i.test(p) ||
+    /\b(latest version of|current price of|who won the|today's news|live score|breaking news|current ceo of|release date of)\b/i.test(p) ||
+    /\b(weather in|stock price of|exchange rate of|current status of|recent update on)\b/i.test(p)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 async function fetchLiveWebResults(
   query: string,
   customApiKey?: string,
@@ -87,14 +113,17 @@ async function fetchLiveWebResults(
     process.env.GOOGLE_SEARCH_API_KEY ||
     process.env.GOOGLE_CSE_KEY ||
     process.env.GOOGLE_API_KEY ||
-    process.env.GOOGLE_SEARCH_KEY;
+    process.env.GOOGLE_SEARCH_KEY ||
+    process.env.GOOGLE_CSE_API_KEY ||
+    process.env.GOOGLE_CUSTOM_SEARCH_KEY;
   const cx =
     customCx ||
     process.env.GOOGLE_CSE ||
     process.env.GOOGLE_CX ||
     process.env.GOOGLE_CSE_ID ||
     process.env.GOOGLE_SEARCH_CX ||
-    process.env.GOOGLE_SEARCH_CSE;
+    process.env.GOOGLE_SEARCH_CSE ||
+    process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID;
 
   if (apiKey && cx) {
     try {
@@ -1035,6 +1064,12 @@ ${memoryPromptSegment ? `${memoryPromptSegment}\n` : ""}### 💬 CONVERSATIONAL 
    - **Deep Technical / Quality Inspection**: Detect bugs, data anomalies, missing records, syntax issues, security vulnerabilities, or performance bottlenecks.
    - **Actionable Next Steps & Solutions**: Provide exact fixes, optimized code snippets, or analytical conclusions.
 
+### 🔬 POST-ANSWER ERROR INSPECTION & GROUNDING (Mandatory AI Review):
+After synthesizing your answer, critically inspect and review your response for any errors:
+1. **Fact & Reality Check**: Verify temporal statements, names, dates, versions, and claims against verified Google CSE search results (when provided). Never hallucinate or assume facts.
+2. **Code Syntax & Logic Integrity**: Inspect code blocks for syntax errors, unmatched braces/brackets, broken imports, missing dependencies, or unhandled exceptions.
+3. **Seamless Error Correction**: If any error, flaw, or inaccuracy is identified during your self-inspection, correct it immediately so the final emitted answer is verified, robust, and completely error-free.
+
 ### 🌟 4-PHASE DEVELOPMENT & CODING WORKFLOW:
 When the user asks to code, develop, or build any website, platform, application, or system (e.g. "build a sales website", "create a landing page for my business", "code a chat platform", "build a crypto dashboard", etc.):
 Deliver clean, production-ready code with complete multi-file implementations:
@@ -1147,16 +1182,11 @@ When the user in this chat or ANY other chat asks to edit, modify, fix, or updat
       userMessageContent += fileContext;
     }
 
-    // Live Web Search Grounding trigger (only search when searchGrounding toggle is explicitly ON or explicit web search command is provided)
+    // Live Web Search Grounding trigger (only search via Google CSE when necessary)
     let fetchedSources: Array<{ title: string; url: string; domain: string; snippet: string }> = [];
-    const isExplicitSearchQuery = Boolean(
-      searchGrounding === true ||
-      /^(search the web for|browse the web for|look up on google:|\/search\s+)/i.test(
-        (prompt || "").trim()
-      )
-    );
+    const shouldSearch = isSearchNecessary(prompt || "", searchGrounding);
 
-    if (isExplicitSearchQuery && prompt) {
+    if (shouldSearch && prompt) {
       try {
         fetchedSources = await fetchLiveWebResults(prompt, googleApiKey, googleCx);
       } catch (sErr) {

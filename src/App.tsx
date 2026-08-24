@@ -547,7 +547,10 @@ export default function App() {
         updatedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         messages: [...(activeSession?.messages || []), userMsg],
       };
-      setSessions((prev) => prev.map((s) => (s.id === activeSessionId ? updatedSession : s)));
+      setSessions((prev) => {
+        const others = prev.filter((s) => s.id !== activeSessionId);
+        return [updatedSession, ...others];
+      });
       saveSupabaseSession(updatedSession);
       saveSupabaseMessage(activeSessionId, userMsg);
 
@@ -561,6 +564,8 @@ export default function App() {
       setPrompt("");
     }
     setAttachedFiles([]);
+
+    let currentActiveSession = activeSession;
 
     if (!isBackground) {
       const userMsg: Message = {
@@ -588,10 +593,13 @@ export default function App() {
         updatedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         messages: [...(activeSession?.messages || []), userMsg],
       };
+      currentActiveSession = updatedSession;
 
-      setSessions((prev) =>
-        prev.map((s) => (s.id === activeSessionId ? updatedSession : s))
-      );
+      // Bring active conversation directly to the very top of the chat sessions list
+      setSessions((prev) => {
+        const others = prev.filter((s) => s.id !== activeSessionId);
+        return [updatedSession, ...others];
+      });
 
       // Persist to Supabase
       saveSupabaseSession(updatedSession);
@@ -611,14 +619,21 @@ export default function App() {
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
-    // Pre-insert placeholder message for smooth real-time token streaming
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === activeSessionId
-          ? { ...s, messages: [...s.messages, initialAiMsg] }
-          : s
-      )
-    );
+    // Pre-insert placeholder message and keep active chat at top
+    setSessions((prev) => {
+      const target = prev.find((s) => s.id === activeSessionId) || currentActiveSession;
+      const others = prev.filter((s) => s.id !== activeSessionId);
+      if (target) {
+        return [{ ...target, messages: [...target.messages, initialAiMsg] }, ...others];
+      }
+      return [{
+        id: activeSessionId,
+        title: "NEW CHAT",
+        model: selectedModel,
+        updatedAt: "Just now",
+        messages: [initialAiMsg],
+      }, ...others];
+    });
 
     try {
       // Build history payload for backend API
@@ -722,18 +737,21 @@ export default function App() {
         spotifyTrack: finalSpotifyTrack,
       };
 
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === activeSessionId
-            ? {
-                ...s,
-                messages: s.messages.map((m) =>
-                  m.id === aiMsgId ? finalizedAiMsg : m
-                ),
-              }
-            : s
-        )
-      );
+      setSessions((prev) => {
+        const target = prev.find((s) => s.id === activeSessionId);
+        const others = prev.filter((s) => s.id !== activeSessionId);
+        if (target) {
+          const updated = {
+            ...target,
+            updatedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            messages: target.messages.map((m) =>
+              m.id === aiMsgId ? finalizedAiMsg : m
+            ),
+          };
+          return [updated, ...others];
+        }
+        return prev;
+      });
 
       // Save finalized AI message to Supabase
       saveSupabaseMessage(activeSessionId, finalizedAiMsg);
@@ -764,13 +782,17 @@ export default function App() {
         text: `Error: ${err.message || "Something went wrong while communicating with Kelvis backend."}`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === activeSessionId
-            ? { ...s, messages: [...s.messages.filter((m) => m.id !== aiMsgId), errorMsg] }
-            : s
-        )
-      );
+      setSessions((prev) => {
+        const target = prev.find((s) => s.id === activeSessionId);
+        const others = prev.filter((s) => s.id !== activeSessionId);
+        if (target) {
+          return [
+            { ...target, messages: [...target.messages.filter((m) => m.id !== aiMsgId), errorMsg] },
+            ...others,
+          ];
+        }
+        return prev;
+      });
       saveSupabaseMessage(activeSessionId, errorMsg);
     } finally {
       setIsLoading(false);
@@ -809,9 +831,10 @@ export default function App() {
       messages: [...(activeSession?.messages || []), userMsg, aiMsg],
     };
 
-    setSessions((prev) =>
-      prev.map((s) => (s.id === activeSessionId ? updatedSession : s))
-    );
+    setSessions((prev) => {
+      const others = prev.filter((s) => s.id !== activeSessionId);
+      return [updatedSession, ...others];
+    });
     saveSupabaseSession(updatedSession);
     saveSupabaseMessage(activeSessionId, userMsg);
     saveSupabaseMessage(activeSessionId, aiMsg);
