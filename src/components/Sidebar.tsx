@@ -14,6 +14,7 @@ import {
   FolderGit2,
   Code2,
   Brain,
+  Download,
 } from "lucide-react";
 import { ChatSession } from "../types";
 
@@ -31,6 +32,7 @@ interface SidebarProps {
   onOpenAuth: () => void;
   onOpenCodebase?: () => void;
   onOpenMemory?: () => void;
+  onOpenInstall?: () => void;
   codebaseFileCount?: number;
   userEmail?: string | null;
 }
@@ -49,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAuth,
   onOpenCodebase,
   onOpenMemory,
+  onOpenInstall,
   codebaseFileCount = 0,
   userEmail,
 }) => {
@@ -172,6 +175,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
               Active
             </span>
           </button>
+
+          {/* Install App / Standalone Hybrid Button */}
+          {onOpenInstall && (
+            <button
+              type="button"
+              onClick={onOpenInstall}
+              className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-sky-500/10 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300 border border-sky-500/30 font-bold text-xs shadow-2xs hover:bg-sky-500/20 active:scale-[0.98] transition-all cursor-pointer group"
+              title="Install Kelvis AI as a Standalone Desktop / Mobile App"
+            >
+              <div className="flex items-center space-x-2">
+                <Download className="w-4 h-4 text-sky-500 group-hover:scale-110 transition-transform shrink-0" />
+                <span className="tracking-wide">Install App</span>
+              </div>
+              <span className="text-[10px] uppercase font-mono font-bold px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-600 dark:text-sky-300">
+                PWA
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Section title: Conversations */}

@@ -1,5 +1,5 @@
 import React from "react";
-import { MoreVertical, Menu, Plus, Sun, Moon } from "lucide-react";
+import { MoreVertical, Menu, Plus, Sun, Moon, Download } from "lucide-react";
 
 interface HeaderProps {
   chatTitle: string;
@@ -8,6 +8,8 @@ interface HeaderProps {
   onOpenOptionsMenu: () => void;
   darkTheme?: boolean;
   onToggleTheme?: () => void;
+  onOpenInstall?: () => void;
+  isInstallable?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,6 +19,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenOptionsMenu,
   darkTheme,
   onToggleTheme,
+  onOpenInstall,
+  isInstallable,
 }) => {
   return (
     <header className="bg-white/95 dark:bg-black/95 backdrop-blur-md px-4 py-3 flex items-center justify-between select-none relative border-b border-black/15 dark:border-white/15">
@@ -39,8 +43,19 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="h-[2px] bg-black dark:bg-white w-1/2 max-w-[50%] ml-2 rounded-full opacity-80" />
       </div>
 
-      {/* Right side: Theme Toggle + NEW CHAT pill button + 3-dots options menu */}
+      {/* Right side: Install shortcut + Theme Toggle + NEW CHAT pill button + 3-dots options menu */}
       <div className="flex items-center space-x-2 shrink-0">
+        {/* Quick Install App Button */}
+        {onOpenInstall && (
+          <button
+            onClick={onOpenInstall}
+            className="p-1.5 rounded-full text-black hover:bg-black/5 dark:text-white dark:hover:bg-white/10 transition-colors border border-black/20 dark:border-white/20 cursor-pointer hidden xs:flex items-center space-x-1"
+            title="Install Kelvis AI App / Desktop Shortcut"
+          >
+            <Download className="w-4 h-4 text-sky-500" />
+          </button>
+        )}
+
         {/* Quick Theme Toggle Button */}
         {onToggleTheme && (
           <button

@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Sliders, Sparkles, Moon, Sun, Volume2, Globe, Key } from "lucide-react";
+import { X, Sliders, Sparkles, Moon, Sun, Volume2, Globe, Key, Download, Smartphone } from "lucide-react";
 import { AppSettings } from "../types";
 
 interface SettingsModalProps {
@@ -7,6 +7,7 @@ interface SettingsModalProps {
   onClose: () => void;
   settings: AppSettings;
   onUpdateSettings: (newSettings: Partial<AppSettings>) => void;
+  onOpenInstall?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -14,6 +15,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   settings,
   onUpdateSettings,
+  onOpenInstall,
 }) => {
   if (!isOpen) return null;
 
@@ -158,6 +160,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {settings.darkTheme ? "Dark Mode" : "Light Mode"}
             </button>
           </div>
+
+          {/* Install App / Shortcut Card */}
+          {onOpenInstall && (
+            <div className="flex items-center justify-between p-3 rounded-xl bg-sky-500/10 dark:bg-sky-900/20 border border-sky-500/20 dark:border-sky-700/30">
+              <div className="flex items-center space-x-2.5">
+                <Download className="w-4 h-4 text-sky-500" />
+                <div>
+                  <div className="font-semibold text-slate-800 dark:text-zinc-200 text-xs">
+                    Install Hybrid App (PWA)
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-zinc-400">
+                    Add shortcut to desktop or home screen
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenInstall();
+                }}
+                className="px-3 py-1 text-xs font-bold rounded-full bg-sky-500 hover:bg-sky-600 text-white shadow-xs transition-colors cursor-pointer"
+              >
+                Install App
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

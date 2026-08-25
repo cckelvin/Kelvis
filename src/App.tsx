@@ -17,6 +17,7 @@ import { QuickQuizDrawer } from "./components/QuickQuizDrawer";
 import { CodebaseModal } from "./components/CodebaseModal";
 import { CodePreviewModal, ProjectFile } from "./components/CodePreviewModal";
 import { MemoryModal } from "./components/MemoryModal";
+import { InstallAppModal } from "./components/InstallAppModal";
 import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack, QuizPayload } from "./types";
 import { Trash2, Download, RotateCcw, Sparkles, Brain } from "lucide-react";
 import {
@@ -122,15 +123,39 @@ export default function App() {
   const [activeQuiz, setActiveQuiz] = useState<QuizPayload | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showOptionsMenu, setShowOptionsMenu] = useState<boolean>(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
+  const [isAppInstallable, setIsAppInstallable] = useState<boolean>(false);
 
   useEffect(() => {
     (window as any).openSqlModal = () => setIsSqlModalOpen(true);
     (window as any).openMemoryModal = () => setIsMemoryOpen(true);
+    (window as any).openInstallModal = () => setIsInstallModalOpen(true);
     const handleCodebaseSync = () => {
       setCodebaseFiles(loadCodebase());
     };
     window.addEventListener("kelvis_codebase_updated", handleCodebaseSync);
-    return () => window.removeEventListener("kelvis_codebase_updated", handleCodebaseSync);
+
+    // Progressive Web App install capture
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+      setIsAppInstallable(true);
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredInstallPrompt(null);
+      setIsAppInstallable(false);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    return () => {
+      window.removeEventListener("kelvis_codebase_updated", handleCodebaseSync);
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
   }, []);
 
   // Feature Toggles
@@ -857,6 +882,7 @@ export default function App() {
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenCodebase={() => setIsCodebaseOpen(true)}
         onOpenMemory={() => setIsMemoryOpen(true)}
+        onOpenInstall={() => setIsInstallModalOpen(true)}
         codebaseFileCount={codebaseFiles.length}
         userEmail={userEmail}
       />
@@ -871,6 +897,8 @@ export default function App() {
           onOpenOptionsMenu={() => setShowOptionsMenu(!showOptionsMenu)}
           darkTheme={settings.darkTheme}
           onToggleTheme={toggleTheme}
+          onOpenInstall={() => setIsInstallModalOpen(true)}
+          isInstallable={isAppInstallable}
         />
 
         {/* 3-Dots Options Menu Popup */}
@@ -881,6 +909,16 @@ export default function App() {
               onClick={() => setShowOptionsMenu(false)}
             />
             <div className="absolute right-4 top-14 w-56 bg-white dark:bg-black border border-black/30 dark:border-white/30 rounded-2xl shadow-xl z-40 py-2 text-xs select-none">
+              <button
+                onClick={() => {
+                  setShowOptionsMenu(false);
+                  setIsInstallModalOpen(true);
+                }}
+                className="w-full text-left px-4 py-2 hover:bg-black/5 dark:hover:bg-white/10 flex items-center space-x-2 text-black dark:text-white font-bold"
+              >
+                <Download className="w-4 h-4 text-sky-500" />
+                <span>Install Kelvis App (PWA)</span>
+              </button>
               <button
                 onClick={() => {
                   setShowOptionsMenu(false);
@@ -1047,6 +1085,7 @@ export default function App() {
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onUpdateSettings={(newSt) => setSettings((prev) => ({ ...prev, ...newSt }))}
+        onOpenInstall={() => setIsInstallModalOpen(true)}
       />
 
       {/* Notifications Modal */}
@@ -1172,6 +1211,14 @@ export default function App() {
       <MemoryModal
         isOpen={isMemoryOpen}
         onClose={() => setIsMemoryOpen(false)}
+      />
+
+      {/* PWA / Native Standalone App Installation Modal */}
+      <InstallAppModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+        deferredPrompt={deferredInstallPrompt}
+        isInstallable={isAppInstallable}
       />
     </div>
   );
