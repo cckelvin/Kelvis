@@ -1,5 +1,5 @@
-import React from "react";
-import { X, Sliders, Sparkles, Moon, Sun, Volume2, Globe, Key, Download, Smartphone } from "lucide-react";
+import React, { useState } from "react";
+import { X, Sliders, Sparkles, Moon, Sun, Volume2, Globe, Key, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { AppSettings } from "../types";
 
 interface SettingsModalProps {
@@ -7,7 +7,6 @@ interface SettingsModalProps {
   onClose: () => void;
   settings: AppSettings;
   onUpdateSettings: (newSettings: Partial<AppSettings>) => void;
-  onOpenInstall?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -15,9 +14,56 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   settings,
   onUpdateSettings,
-  onOpenInstall,
 }) => {
+  const [isTestingCse, setIsTestingCse] = useState(false);
+  const [cseTestResult, setCseTestResult] = useState<{
+    ok: boolean;
+    message: string;
+    details?: string;
+  } | null>(null);
+
   if (!isOpen) return null;
+
+  const testGoogleCse = async () => {
+    setIsTestingCse(true);
+    setCseTestResult(null);
+    try {
+      const res = await fetch("/api/google-cse/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiKey: settings.customGoogleApiKey,
+          cx: settings.customGoogleCx,
+          query: "latest tech news",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setCseTestResult({
+          ok: true,
+          message: data.message || `Connected! Found ${data.count} live search results.`,
+        });
+      } else {
+        setCseTestResult({
+          ok: false,
+          message: data.error || `HTTP ${res.status}: Failed to connect to Google CSE`,
+          details:
+            res.status === 403
+              ? "Ensure 'Custom Search API' is enabled in your Google Cloud Console."
+              : res.status === 400
+              ? "Check that your API Key and CX are copied correctly without extra spaces."
+              : "Verify that 'Search the entire web' is toggled ON at programmablesearchengine.google.com",
+        });
+      }
+    } catch (e: any) {
+      setCseTestResult({
+        ok: false,
+        message: e?.message || "Failed to reach server test endpoint",
+      });
+    } finally {
+      setIsTestingCse(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 select-none">
@@ -91,6 +137,51 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               />
             </div>
 
+            {/* Test Google CSE Connection Button */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={testGoogleCse}
+                disabled={isTestingCse}
+                className="w-full py-2 px-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+              >
+                {isTestingCse ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Verifying Google CSE Connection...</span>
+                  </>
+                ) : (
+                  <>
+                    <Globe className="w-3.5 h-3.5" />
+                    <span>Test Google CSE & API Key Connection</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* CSE Test Feedback Message */}
+            {cseTestResult && (
+              <div
+                className={`p-2.5 rounded-xl border text-xs leading-relaxed space-y-1 ${
+                  cseTestResult.ok
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
+                    : "bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300"
+                }`}
+              >
+                <div className="flex items-start space-x-2">
+                  {cseTestResult.ok ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                  )}
+                  <span className="font-semibold">{cseTestResult.message}</span>
+                </div>
+                {cseTestResult.details && (
+                  <p className="text-[11px] opacity-90 pl-6">{cseTestResult.details}</p>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
                 Groq API Key
@@ -160,32 +251,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {settings.darkTheme ? "Dark Mode" : "Light Mode"}
             </button>
           </div>
-
-          {/* Install App / Shortcut Card */}
-          {onOpenInstall && (
-            <div className="flex items-center justify-between p-3 rounded-xl bg-sky-500/10 dark:bg-sky-900/20 border border-sky-500/20 dark:border-sky-700/30">
-              <div className="flex items-center space-x-2.5">
-                <Download className="w-4 h-4 text-sky-500" />
-                <div>
-                  <div className="font-semibold text-slate-800 dark:text-zinc-200 text-xs">
-                    Install Hybrid App (PWA)
-                  </div>
-                  <div className="text-[11px] text-slate-500 dark:text-zinc-400">
-                    Add shortcut to desktop or home screen
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  onClose();
-                  onOpenInstall();
-                }}
-                className="px-3 py-1 text-xs font-bold rounded-full bg-sky-500 hover:bg-sky-600 text-white shadow-xs transition-colors cursor-pointer"
-              >
-                Install App
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Footer */}

@@ -152,4 +152,10 @@ export interface LocalGgufModel {
   benchmarkSpeed?: string;
   testPrompt?: string;
   testOutput?: string;
+  engine?: "internal-llamacpp" | "internal" | "external" | "webgpu" | "wasm";
+  llamaCppEndpoint?: string;
+  threads?: number;
+  gpuLayers?: number;
+  contextSize?: number;
+  status?: "ready" | "loaded" | "idle";
 }

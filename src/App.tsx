@@ -70,7 +70,7 @@ const INITIAL_SESSIONS: ChatSession[] = [
 
 const DEFAULT_SETTINGS: AppSettings = {
   systemInstruction:
-    "You are Kelvis, a smart, helpful, and creative AI assistant running strictly on model openai/gpt-oss-120b or openai/gpt-oss-20b. When coding an application, first explain your next step clearly (e.g., 'I will start with the web structure...'), then use activefile progress tags and complete code blocks.",
+    "You are Kelvis, a smart, helpful, and creative AI assistant running strictly on model openai/gpt-oss-120b or openai/gpt-oss-20b. When coding an application, first explain your next step clearly (e.g., 'I will start with the web structure...'), then use activefile progress tags and complete code blocks. Do NOT generate markdown tables unless the user explicitly asks for a table; format responses with clean bullet points and clear paragraphs.",
   searchGrounding: true,
   autoVoiceRead: false,
   darkTheme: false,
@@ -689,7 +689,7 @@ export default function App() {
           history: historyPayload,
           model: modelToUse,
           files: currentFiles,
-          searchGrounding: false,
+          searchGrounding: settings.searchGrounding,
           userMemory: loadUserMemory(),
           systemInstruction: settings.systemInstruction,
           googleApiKey: settings.customGoogleApiKey,
@@ -902,16 +902,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white dark:bg-black text-black dark:text-white font-sans relative">
-      {/* Ambient luminous dark red light on the edges of the sides of the screen when coding Gear 1.0 */}
-      {isCodingActive && (
-        <div
-          className="pointer-events-none fixed inset-0 z-40 transition-opacity duration-700 opacity-100 shadow-[inset_0_0_80px_rgba(220,38,38,0.3),inset_40px_0_55px_rgba(185,28,28,0.25),inset_-40px_0_55px_rgba(185,28,28,0.25)]"
-          aria-hidden="true"
-        >
-          <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-red-600/30 to-transparent pointer-events-none" />
-          <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-red-600/30 to-transparent pointer-events-none" />
-        </div>
-      )}
       {/* Sidebar matching hand drawn lower panel */}
       <Sidebar
         isOpen={isSidebarOpen}
@@ -927,7 +917,6 @@ export default function App() {
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenCodebase={() => setIsCodebaseOpen(true)}
         onOpenMemory={() => setIsMemoryOpen(true)}
-        onOpenInstall={() => setIsInstallModalOpen(true)}
         codebaseFileCount={codebaseFiles.length}
         userEmail={userEmail}
         onSignOut={() => {
@@ -946,8 +935,6 @@ export default function App() {
           onOpenOptionsMenu={() => setShowOptionsMenu(!showOptionsMenu)}
           darkTheme={settings.darkTheme}
           onToggleTheme={toggleTheme}
-          onOpenInstall={() => setIsInstallModalOpen(true)}
-          isInstallable={isAppInstallable}
         />
 
         {/* 3-Dots Options Menu Popup */}
@@ -958,16 +945,6 @@ export default function App() {
               onClick={() => setShowOptionsMenu(false)}
             />
             <div className="absolute right-4 top-14 w-56 bg-white dark:bg-black border border-black/30 dark:border-white/30 rounded-2xl shadow-xl z-40 py-2 text-xs select-none">
-              <button
-                onClick={() => {
-                  setShowOptionsMenu(false);
-                  setIsInstallModalOpen(true);
-                }}
-                className="w-full text-left px-4 py-2 hover:bg-black/5 dark:hover:bg-white/10 flex items-center space-x-2 text-black dark:text-white font-bold"
-              >
-                <Download className="w-4 h-4 text-sky-500" />
-                <span>Install Kelvis App (PWA)</span>
-              </button>
               <button
                 onClick={() => {
                   setShowOptionsMenu(false);
@@ -1139,7 +1116,6 @@ export default function App() {
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onUpdateSettings={(newSt) => setSettings((prev) => ({ ...prev, ...newSt }))}
-        onOpenInstall={() => setIsInstallModalOpen(true)}
       />
 
       {/* Notifications Modal */}

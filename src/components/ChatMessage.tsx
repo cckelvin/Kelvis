@@ -908,14 +908,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           </div>
         ) : (
           /* Assistant Response */
-          <div className="flex items-start w-full max-w-4xl space-x-3 sm:space-x-3.5">
+          <div className="flex flex-col w-full max-w-4xl">
             {/* Kelvis AI Avatar */}
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black text-white dark:bg-white dark:text-black flex items-center justify-center shrink-0 shadow-xs mt-1 border border-black dark:border-white">
-              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white dark:text-black" />
+            <div className="flex items-center space-x-2.5 mb-2.5">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black text-white dark:bg-white dark:text-black flex items-center justify-center shrink-0 shadow-xs border border-black dark:border-white">
+                <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white dark:text-black" />
+              </div>
+              <span className="text-xs font-black tracking-wider text-black dark:text-white uppercase">Kelvis AI</span>
             </div>
 
-            {/* AI Text Body directly on canvas */}
-            <div className="flex flex-col min-w-0 flex-1">
+            {/* AI Text Body directly below the icon, starting where the icon starts from */}
+            <div className="flex flex-col min-w-0 w-full">
               {/* Generated image */}
               {message.image && (
                 <div className="mb-3 overflow-hidden rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-sm max-w-xl">

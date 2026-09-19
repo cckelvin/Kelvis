@@ -242,10 +242,10 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
 
         {/* Gear 1.0 Coding Mode Status Tab directly above left side of input */}
         {isCoding && (
-          <div className="flex items-center space-x-2 px-3 py-1 mb-2 ml-1 rounded-full bg-black/95 dark:bg-zinc-950 border border-red-500/80 shadow-[0_0_15px_rgba(239,68,68,0.45)] text-red-500 text-xs font-mono font-black w-fit animate-pulse select-none">
-            {/* Spinning red circle ⭕ icon */}
-            <span className="w-3.5 h-3.5 rounded-full border-2 border-red-500 border-t-transparent animate-spin inline-block shrink-0" />
-            <span className="tracking-wide">calling Gear1.0</span>
+          <div className="flex items-center space-x-2 px-3 py-1 mb-2 ml-1 rounded-full bg-black text-white dark:bg-white dark:text-black border border-black/20 dark:border-white/20 text-xs font-mono font-bold w-fit select-none shadow-xs">
+            {/* Spinning indicator icon */}
+            <span className="w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin inline-block shrink-0" />
+            <span className="tracking-wide text-[11px]">Gear 1.0 Active</span>
           </div>
         )}
 
