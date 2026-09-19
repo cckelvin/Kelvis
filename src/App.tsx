@@ -314,7 +314,6 @@ export default function App() {
                     body: JSON.stringify({
                       audioBase64: base64Data,
                       mimeType: "audio/webm",
-                      groqApiKey: settings.customGroqApiKey,
                     }),
                   });
                   if (res.ok) {
@@ -416,7 +415,6 @@ export default function App() {
         body: JSON.stringify({
           text: cleanSpoken.slice(0, 1000),
           voice: "autumn",
-          groqApiKey: settings.customGroqApiKey,
         }),
       });
 
@@ -450,7 +448,6 @@ export default function App() {
         body: JSON.stringify({
           text: cleanSpoken.slice(0, 1000),
           voiceName: "Kore",
-          customApiKey: settings.customGoogleApiKey,
         }),
       });
 
@@ -692,9 +689,6 @@ export default function App() {
           searchGrounding: settings.searchGrounding,
           userMemory: loadUserMemory(),
           systemInstruction: settings.systemInstruction,
-          googleApiKey: settings.customGoogleApiKey,
-          googleCx: settings.customGoogleCx,
-          groqApiKey: settings.customGroqApiKey,
           codebaseContext: getCodebaseContextForPrompt(),
           stream: true,
         }),

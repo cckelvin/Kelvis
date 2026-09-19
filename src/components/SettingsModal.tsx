@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { X, Sliders, Sparkles, Moon, Sun, Volume2, Globe, Key, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import React from "react";
+import { X, Sliders, Moon, Sun, Volume2, ShieldCheck } from "lucide-react";
 import { AppSettings } from "../types";
 
 interface SettingsModalProps {
@@ -15,55 +15,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   onUpdateSettings,
 }) => {
-  const [isTestingCse, setIsTestingCse] = useState(false);
-  const [cseTestResult, setCseTestResult] = useState<{
-    ok: boolean;
-    message: string;
-    details?: string;
-  } | null>(null);
-
   if (!isOpen) return null;
-
-  const testGoogleCse = async () => {
-    setIsTestingCse(true);
-    setCseTestResult(null);
-    try {
-      const res = await fetch("/api/google-cse/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apiKey: settings.customGoogleApiKey,
-          cx: settings.customGoogleCx,
-          query: "latest tech news",
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        setCseTestResult({
-          ok: true,
-          message: data.message || `Connected! Found ${data.count} live search results.`,
-        });
-      } else {
-        setCseTestResult({
-          ok: false,
-          message: data.error || `HTTP ${res.status}: Failed to connect to Google CSE`,
-          details:
-            res.status === 403
-              ? "Ensure 'Custom Search API' is enabled in your Google Cloud Console."
-              : res.status === 400
-              ? "Check that your API Key and CX are copied correctly without extra spaces."
-              : "Verify that 'Search the entire web' is toggled ON at programmablesearchengine.google.com",
-        });
-      }
-    } catch (e: any) {
-      setCseTestResult({
-        ok: false,
-        message: e?.message || "Failed to reach server test endpoint",
-      });
-    } finally {
-      setIsTestingCse(false);
-    }
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 select-none">
@@ -100,106 +52,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             />
           </div>
 
-          {/* Custom API Keys Configuration */}
-          <div className="p-3.5 rounded-2xl bg-sky-500/5 dark:bg-sky-900/20 border border-sky-500/20 dark:border-sky-700/30 space-y-3">
-            <div className="flex items-center space-x-2 text-sky-700 dark:text-sky-300 font-bold text-xs">
-              <Key className="w-4 h-4 text-sky-500" />
-              <span>Custom API Credentials (Optional)</span>
-            </div>
-            
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
-                Google Search API Key
-              </label>
-              <input
-                type="password"
-                value={settings.customGoogleApiKey || ""}
-                onChange={(e) =>
-                  onUpdateSettings({ customGoogleApiKey: e.target.value })
-                }
-                placeholder="AIzaSy..."
-                className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-xl px-3 py-1.5 text-slate-800 dark:text-zinc-100 text-xs focus:outline-hidden font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
-                Google Search Engine ID (CX)
-              </label>
-              <input
-                type="text"
-                value={settings.customGoogleCx || ""}
-                onChange={(e) =>
-                  onUpdateSettings({ customGoogleCx: e.target.value })
-                }
-                placeholder="e.g. 017576564022800000000:abc123def"
-                className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-xl px-3 py-1.5 text-slate-800 dark:text-zinc-100 text-xs focus:outline-hidden font-mono"
-              />
-            </div>
-
-            {/* Test Google CSE Connection Button */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={testGoogleCse}
-                disabled={isTestingCse}
-                className="w-full py-2 px-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
-              >
-                {isTestingCse ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Verifying Google CSE Connection...</span>
-                  </>
-                ) : (
-                  <>
-                    <Globe className="w-3.5 h-3.5" />
-                    <span>Test Google CSE & API Key Connection</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* CSE Test Feedback Message */}
-            {cseTestResult && (
-              <div
-                className={`p-2.5 rounded-xl border text-xs leading-relaxed space-y-1 ${
-                  cseTestResult.ok
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
-                    : "bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300"
-                }`}
-              >
-                <div className="flex items-start space-x-2">
-                  {cseTestResult.ok ? (
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-                  )}
-                  <span className="font-semibold">{cseTestResult.message}</span>
-                </div>
-                {cseTestResult.details && (
-                  <p className="text-[11px] opacity-90 pl-6">{cseTestResult.details}</p>
-                )}
+          {/* Secure Secrets Info Banner */}
+          <div className="p-3.5 rounded-2xl bg-emerald-500/10 dark:bg-emerald-950/20 border border-emerald-500/20 dark:border-emerald-800/30 flex items-start space-x-3">
+            <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+            <div className="text-xs space-y-0.5">
+              <div className="font-semibold text-emerald-800 dark:text-emerald-300">
+                Environment Secrets Active
               </div>
-            )}
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
-                Groq API Key
-              </label>
-              <input
-                type="password"
-                value={settings.customGroqApiKey || ""}
-                onChange={(e) =>
-                  onUpdateSettings({ customGroqApiKey: e.target.value })
-                }
-                placeholder="gsk_..."
-                className="w-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-xl px-3 py-1.5 text-slate-800 dark:text-zinc-100 text-xs focus:outline-hidden font-mono"
-              />
+              <div className="text-slate-600 dark:text-zinc-400 text-[11px] leading-relaxed">
+                Google Search (API Key & CX) and Groq API keys are read automatically from your environment secrets.
+              </div>
             </div>
-
-            <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-tight">
-              Google search sourcing is always enabled. If custom keys are left empty, the application seamlessly uses default system keys.
-            </p>
           </div>
 
           {/* Auto Voice Readout Toggle */}

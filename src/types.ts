@@ -152,10 +152,15 @@ export interface LocalGgufModel {
   benchmarkSpeed?: string;
   testPrompt?: string;
   testOutput?: string;
-  engine?: "internal-llamacpp" | "internal" | "external" | "webgpu" | "wasm";
+  engine?: "internal-llamacpp" | "internal" | "external" | "webgpu" | "wasm" | "ollama";
   llamaCppEndpoint?: string;
   threads?: number;
   gpuLayers?: number;
   contextSize?: number;
-  status?: "ready" | "loaded" | "idle";
+  status?: "ready" | "loaded" | "idle" | "caching" | "cached";
+  isCached?: boolean;
+  cachedAt?: string;
+  cacheSource?: "indexeddb" | "ollama" | "llamacpp";
+  ollamaTag?: string;
+  downloadUrl?: string;
 }

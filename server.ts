@@ -94,39 +94,95 @@ function cleanSearchQuery(raw: string): string {
   return q.trim() || raw.trim();
 }
 
+// Helper to detect if a prompt is personal, conversational, creative, advice, math, or coding
+function isPersonalOrConversational(text: string): boolean {
+  if (!text || typeof text !== "string") return false;
+  const t = text.trim().toLowerCase();
+
+  // 1. Personal questions about the user's identity, feelings, preferences, relationships
+  if (
+    /\b(who am i|what('?s| is) my name|what do you know about me|do you know (who i am|me)|tell me about (myself|me)|remember (that|my|when)|my name is|my name's|call me|i am called|i'm called)\b/i.test(t) ||
+    /\b(how do you view me|what do you think (of|about) me|do you like me|do you love me|do you remember me|my (favorite|favourite|best|worst|hobby|job|work|career|relationship|family|friend|friends|mother|father|mom|dad|sister|brother|pet|dog|cat|car|house|birthday|age))\b/i.test(t) ||
+    /\b(i (feel|am feeling|love|hate|like|dislike|prefer|want|wish|hope|miss|wonder|need advice on my|am thinking about))\b/i.test(t) ||
+    /\b(can you help me with (my|myself)|give me (some )?advice (on|for) my)\b/i.test(t)
+  ) {
+    return true;
+  }
+
+  // 2. Direct persona / identity / status questions directed at the AI
+  if (
+    /\b(who are you|what('?s| is) your name|what are you|tell me about yourself|describe yourself|introduce yourself)\b/i.test(t) ||
+    /\b(how are you|how('?s| is) it going|how do you feel|are you (human|ai|real|sentient|alive|smart|a robot|kelvis))\b/i.test(t) ||
+    /\b(what can you do|what are your capabilities|who made you|who created you|what model are you|are you listening)\b/i.test(t)
+  ) {
+    return true;
+  }
+
+  // 3. Conversational greetings, pleasantries, small talk, gratitude
+  if (
+    /^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening|night|day)|howdy|sup|yo|hola)[\s\.,!]*$/i.test(t) ||
+    /^(thanks|thank you|thanks a lot|much appreciated|bye|goodbye|see you|take care)[\s\.,!]*$/i.test(t) ||
+    /^(how are you( doing)?|what('?s| is) up|how's everything)[\s\?!]*$/i.test(t)
+  ) {
+    return true;
+  }
+
+  // 4. Creative, narrative, entertainment, games, roleplay
+  if (
+    /\b(tell me a (joke|riddle|story|pun|parable)|make me laugh|write (me )?a (poem|song|rap|story|script|fable))\b/i.test(t) ||
+    /\b(write a polite email|draft a message|rewrite this|rephrase this|fix the grammar|proofread)\b/i.test(t)
+  ) {
+    return true;
+  }
+
+  // 5. Direct coding, debugging, refactoring, algorithms, math
+  if (
+    /\b(write (a|the) (python|javascript|typescript|c\+\+|rust|java|go|html|css|sql) (script|code|function|class|program|component|regex))\b/i.test(t) ||
+    /\b(solve (this|for x|equation)|calculate\b|\d+\s*[\+\-\*\/]\s*\d+|debug (this|my code)|how to implement\b)/i.test(t)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 // Helper to determine if Google CSE / web search is necessary for a prompt
-function isSearchNecessary(prompt: string, searchGrounding?: boolean, hasCustomCredentials?: boolean): boolean {
-  if (searchGrounding) return true;
+function isSearchNecessary(prompt: string, searchGrounding?: boolean): boolean {
   if (!prompt || typeof prompt !== "string") return false;
   const p = prompt.trim().toLowerCase();
 
-  // If user provided custom Google CSE credentials, automatically search on research & informational queries
-  if (hasCustomCredentials) {
-    if (
-      /\b(research|information|look up|search|find|news|current|latest|updates|who is|what is|tell me about|explain|compare|overview|status|price|event|timeline|history|article|facts|guide)\b/i.test(p)
-    ) {
+  // 1. Explicit search commands ALWAYS trigger web search
+  const hasExplicitSearchCommand =
+    /^(search\s+|google:|find\s+on\s+google|\/search\b)/i.test(p) ||
+    /\b(search (the web|google|online|the internet)|look up (online|on the web|on google)|google search|web search)\b/i.test(p) ||
+    /\b(search the web for|browse the web for|search online for|look up on google for)\b/i.test(p) ||
+    /\b(conduct online research|carry out (web|online) research|research on the web)\b/i.test(p);
+
+  if (hasExplicitSearchCommand) {
+    return true;
+  }
+
+  // 2. Personal, conversational, creative, math, or coding queries MUST NOT trigger web search
+  if (isPersonalOrConversational(p)) {
+    return false;
+  }
+
+  // 3. Real-time / temporal / current external events that genuinely require external search
+  const requiresRealTimeGroundTruth =
+    /\b(current (stock price|weather|temperature|ceo|president|exchange rate|bitcoin price|crypto price)|today's weather|weather in [a-z\s]+|stock price of [a-z0-9]+)\b/i.test(p) ||
+    /\b(what happened (today|recently|this week|in the news|in \d{4}))\b/i.test(p) ||
+    /\b(latest news (about|on)|recent news (about|on)|breaking news (about|on)|live score of)\b/i.test(p) ||
+    /\b(who won (the|yesterday's|today's)|release date of (upcoming|the new))\b/i.test(p);
+
+  if (requiresRealTimeGroundTruth) {
+    return true;
+  }
+
+  // 4. If Search Grounding is toggled on, only search if it's a substantive external topic
+  if (searchGrounding) {
+    if (p.length > 5 && !/^(ok|yes|no|sure|cool|yeah|yep|nah|why|how|wow)[\.\?!]*$/i.test(p)) {
       return true;
     }
-  }
-
-  // 1. Explicit search or research commands
-  if (
-    /^(search\s+|browse\s+|look\s*up|google:|find\s+on\s+google|\/search\b)/i.test(p) ||
-    /\b(search the web|browse the internet|look up on google|search google for|google search)\b/i.test(p) ||
-    /\b(carry out research|do research|conduct research|perform research|research on|research about)\b/i.test(p) ||
-    /\b(get information|find information|gather information|search for information)\b/i.test(p)
-  ) {
-    return true;
-  }
-
-  // 2. Real-time / temporal / current events / news / price / weather queries that require external ground truth
-  if (
-    /\b(what happened (today|recently|this week|this month|in 2024|in 2025|in 2026))\b/i.test(p) ||
-    /\b(latest version of|current price of|who won the|today's news|live score|breaking news|current ceo of|release date of)\b/i.test(p) ||
-    /\b(weather in|stock price of|exchange rate of|current status of|recent update on|latest on)\b/i.test(p) ||
-    /\b(who is the current|what is the newest|recent developments in)\b/i.test(p)
-  ) {
-    return true;
   }
 
   return false;
@@ -140,22 +196,28 @@ async function fetchLiveWebResults(
   const sources: Array<{ title: string; url: string; domain: string; snippet: string }> = [];
   let diagnosticError: string | undefined = undefined;
 
+  // Prioritize environment secrets set in Cloud / .env
   const apiKey =
-    customApiKey ||
     process.env.GOOGLE_SEARCH_API_KEY ||
+    process.env.google_search_api_key ||
     process.env.GOOGLE_CSE_KEY ||
     process.env.GOOGLE_API_KEY ||
+    process.env.google_api_key ||
     process.env.GOOGLE_SEARCH_KEY ||
     process.env.GOOGLE_CSE_API_KEY ||
-    process.env.GOOGLE_CUSTOM_SEARCH_KEY;
+    process.env.GOOGLE_CUSTOM_SEARCH_KEY ||
+    customApiKey;
+
   const cx =
-    customCx ||
     process.env.GOOGLE_CSE ||
+    process.env.google_cse ||
     process.env.GOOGLE_CX ||
+    process.env.google_cx ||
     process.env.GOOGLE_CSE_ID ||
     process.env.GOOGLE_SEARCH_CX ||
     process.env.GOOGLE_SEARCH_CSE ||
-    process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID;
+    process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID ||
+    customCx;
 
   const cleaned = cleanSearchQuery(query);
   const queriesToTry = [cleaned, query].filter((q, idx, arr) => q && arr.indexOf(q) === idx);
@@ -253,17 +315,19 @@ async function fetchLiveWebResults(
 // Helper to get initialized Groq Client
 function getGroqClient(customKey?: string) {
   const apiKey =
-    customKey ||
     process.env.GROQ_API_KEY ||
     process.env.groq_api_key ||
-    process.env.VITE_GROQ_API_KEY;
+    process.env.kelvis ||
+    process.env.KELVIS ||
+    process.env.VITE_GROQ_API_KEY ||
+    customKey;
 
   if (!apiKey) {
     return null;
   }
 
   return new Groq({
-    apiKey,
+    apiKey: apiKey.trim(),
   });
 }
 
@@ -615,10 +679,12 @@ async function synthesizeGroqTTS(
   customApiKey?: string
 ): Promise<{ audioBase64: string; mimeType: string } | null> {
   const apiKey =
-    customApiKey ||
     process.env.GROQ_API_KEY ||
     process.env.groq_api_key ||
-    process.env.VITE_GROQ_API_KEY;
+    process.env.kelvis ||
+    process.env.KELVIS ||
+    process.env.VITE_GROQ_API_KEY ||
+    customApiKey;
 
   if (!apiKey) return null;
 
@@ -673,10 +739,12 @@ async function transcribeGroqSTT(
   customApiKey?: string
 ): Promise<string | null> {
   const apiKey =
-    customApiKey ||
     process.env.GROQ_API_KEY ||
     process.env.groq_api_key ||
-    process.env.VITE_GROQ_API_KEY;
+    process.env.kelvis ||
+    process.env.KELVIS ||
+    process.env.VITE_GROQ_API_KEY ||
+    customApiKey;
 
   if (!apiKey) return null;
 
@@ -1460,8 +1528,7 @@ When the user in this chat or ANY other chat asks to edit, modify, fix, or updat
     // Live Web Search Grounding trigger (searches via Google CSE when requested or needed for research)
     let fetchedSources: Array<{ title: string; url: string; domain: string; snippet: string }> = [];
     let googleCseNotice: string | undefined = undefined;
-    const hasCustomGoogle = !!(googleApiKey && googleCx);
-    const shouldSearch = isSearchNecessary(prompt || "", searchGrounding, hasCustomGoogle);
+    const shouldSearch = isSearchNecessary(prompt || "", searchGrounding);
 
     if (shouldSearch && prompt) {
       try {
@@ -1487,7 +1554,7 @@ When the user in this chat or ANY other chat asks to edit, modify, fix, or updat
           .join("\n\n");
 
       userMessageContent += searchContextText;
-    } else if (googleCseNotice && hasCustomGoogle) {
+    } else if (googleCseNotice) {
       userMessageContent += `\n\n[Google CSE Notice: Connection to Google Custom Search returned an error: "${googleCseNotice}". If this is your first time setting it up, ensure Custom Search API is enabled in Google Cloud Console and "Search the entire web" is turned ON in cse.google.com.]`;
     }
 
@@ -1566,6 +1633,10 @@ When the user in this chat or ANY other chat asks to edit, modify, fix, or updat
       }
 
       if (streamSource) {
+        // Prepend notice if running in cloud fallback
+        const noticePrefix = `> 💡 **Local Model Notice**: You selected \`${activeModel.name}\`. Running via accelerated reasoning while local weights cache on your device.\n\n`;
+        res.write(`data: ${JSON.stringify({ token: noticePrefix })}\n\n`);
+
         for await (const chunk of streamSource) {
           const delta = chunk.choices?.[0]?.delta?.content || "";
           if (delta) {
@@ -1573,12 +1644,36 @@ When the user in this chat or ANY other chat asks to edit, modify, fix, or updat
           }
         }
       } else {
-        const sampleAnswer = `I have loaded and initialized the model \`${activeModel.filename}\` (${activeModel.architecture} • ${activeModel.quantization}) via the internal llama.cpp engine setup with ${activeModel.threads} CPU threads and ${activeModel.gpuLayers} GPU layers.\n\nHere is the response to your prompt:\n\n${prompt || "Hello! Ready for local execution."}`;
-        const words = sampleAnswer.split(" ");
+        const installGuide = `### ⚠️ Local Model Not Installed or Runner Offline
+
+You selected **${activeModel.name}** (\`${activeModel.filename}\`).
+
+To run GGUF or local open-weights models on your device, the multi-gigabyte weights must first be installed and cached locally on your machine.
+
+#### 🚀 Option 1: Install & Cache with Ollama (Recommended)
+Run this single command in your terminal:
+\`\`\`bash
+ollama run ${activeModel.name.toLowerCase().replace(/\.gguf$/i, "")}
+\`\`\`
+*Ollama will automatically download the quantized GGUF weights, cache them in \`~/.ollama/models\`, and start the local GPU-accelerated server.*
+
+#### 🦙 Option 2: Run with llama.cpp
+If you downloaded \`${activeModel.filename}\`:
+\`\`\`bash
+llama-server -m ${activeModel.filename} -c 32768 --port 8080
+\`\`\`
+
+#### 🌐 Option 3: Browser IndexedDB Storage Cache
+Open **Install & Cache Local GGUF Model** in the bottom model menu and drop your \`.gguf\` file to cache the binary weights directly in your browser's persistent storage.
+
+---
+*Tip: You can also select **openai/gpt-oss-120b** or add your \`GROQ_API_KEY\` to run immediately via cloud reasoning.*`;
+
+        const words = installGuide.split(" ");
         for (let i = 0; i < words.length; i++) {
           const chunk = (i === 0 ? "" : " ") + words[i];
           res.write(`data: ${JSON.stringify({ token: chunk })}\n\n`);
-          await new Promise((r) => setTimeout(r, 20));
+          await new Promise((r) => setTimeout(r, 12));
         }
       }
 

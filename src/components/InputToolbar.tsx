@@ -491,9 +491,14 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
                               <span className="text-[9px] px-1 py-0.2 rounded bg-black/10 dark:bg-white/15 font-mono">
                                 {model.quantization}
                               </span>
+                              {model.isCached && (
+                                <span className="text-[9px] px-1 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold">
+                                  Cached
+                                </span>
+                              )}
                             </div>
                             <div className="text-[10px] font-mono text-black/60 dark:text-white/60 mt-0.5">
-                              {model.parameters} • {model.benchmarkSpeed || "Local"}
+                              {model.parameters ? `${model.parameters} • ` : ""}{model.isCached ? "Local Storage Cache" : model.engine === "ollama" ? "Ollama Runner" : "Local Engine"}
                             </div>
                           </div>
                           {selectedModel === model.id && (
@@ -515,7 +520,7 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
                       className="w-full py-2 px-3 rounded-xl bg-black text-white dark:bg-white dark:text-black font-black text-xs flex items-center justify-center space-x-1.5 hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-xs"
                     >
                       <Layers className="w-3.5 h-3.5" />
-                      <span>📦 Load & Test Local GGUF Model</span>
+                      <span>📦 Install & Cache Local GGUF Model</span>
                     </button>
                   </div>
                 </div>
