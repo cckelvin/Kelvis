@@ -35,6 +35,7 @@ interface SidebarProps {
   onOpenInstall?: () => void;
   codebaseFileCount?: number;
   userEmail?: string | null;
+  onSignOut?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -54,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenInstall,
   codebaseFileCount = 0,
   userEmail,
+  onSignOut,
 }) => {
   return (
     <aside
@@ -250,16 +252,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* Footer info with Supabase Auth status pill */}
+        {/* Footer info with user profile & sign out */}
         <div className="p-3 border-t border-black/15 dark:border-white/15 text-[11px] text-black/60 dark:text-white/60 font-semibold flex items-center justify-between select-none">
-          <span className="font-bold">Kelvis AI • Black & White</span>
-          <button
-            onClick={onOpenAuth}
-            className="hover:text-black dark:hover:text-white font-bold underline flex items-center space-x-1"
-          >
-            <User className="w-3 h-3" />
-            <span>{userEmail ? "Account" : "Sign In"}</span>
-          </button>
+          <div className="flex items-center space-x-1.5 truncate max-w-[140px]" title={userEmail || "Kelvis AI"}>
+            <User className="w-3.5 h-3.5 text-black dark:text-white shrink-0" />
+            <span className="truncate font-bold text-black dark:text-white">{userEmail || "Kelvis AI"}</span>
+          </div>
+          {onSignOut ? (
+            <button
+              onClick={onSignOut}
+              className="text-xs font-bold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 underline cursor-pointer"
+              title="Sign Out to login/signup page"
+            >
+              Sign Out
+            </button>
+          ) : (
+            <button
+              onClick={onOpenAuth}
+              className="hover:text-black dark:hover:text-white font-bold underline flex items-center space-x-1"
+            >
+              <span>Account</span>
+            </button>
+          )}
         </div>
       </div>
     </aside>

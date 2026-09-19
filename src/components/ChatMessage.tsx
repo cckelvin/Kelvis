@@ -68,7 +68,7 @@ function getFileLanguageMeta(filename: string = "", lang: string = "") {
   return { label: (lang || "Code").toUpperCase(), color: "text-black dark:text-white", bg: "bg-black/10 dark:bg-white/15", border: "border-black/20 dark:border-white/20" };
 }
 
-// Compact Collapsible File Tab Component (fits tiny tab with folder/file name, expands on tap)
+// Exposed Code Box Component (Always exposed in a box with Play button prominently placed above)
 const CompactFileTab: React.FC<{
   lang: string;
   filename?: string;
@@ -90,8 +90,8 @@ const CompactFileTab: React.FC<{
   onPreview,
   isStreaming = false,
 }) => {
-  // Start collapsed by default so code doesn't spill across the screen
-  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  // Code is exposed by default in its box (not hidden)
+  const [isExpanded, setIsExpanded] = useState<boolean>(true);
   const lineCount = codeString.split("\n").length;
   const meta = getFileLanguageMeta(filename, lang);
 
@@ -101,34 +101,30 @@ const CompactFileTab: React.FC<{
   const folderPath = pathParts.length > 0 ? pathParts.join("/") + "/" : "";
 
   return (
-    <div className="my-2 rounded-xl overflow-hidden border border-black/20 dark:border-white/20 bg-white dark:bg-black text-black dark:text-white shadow-xs text-xs font-sans transition-all">
-      {/* Tiny Tab Header */}
-      <div
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center justify-between px-3 py-2 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 cursor-pointer select-none transition-colors border-b border-transparent data-[expanded=true]:border-black/15 dark:data-[expanded=true]:border-white/15"
-        data-expanded={isExpanded}
-      >
-        {/* Left: Folder / File Name */}
+    <div className="my-3 rounded-2xl overflow-hidden border-2 border-black/20 dark:border-white/20 bg-white dark:bg-black text-black dark:text-white shadow-xs text-xs font-sans transition-all">
+      {/* Top Header Row Directly Above Code: Prominent Play Button, File Info, and Copy */}
+      <div className="flex items-center justify-between px-3.5 py-2.5 bg-black/5 dark:bg-white/10 select-none border-b border-black/15 dark:border-white/15">
+        {/* Left: Folder & File Name with Language Badge */}
         <div className="flex items-center space-x-2 min-w-0 pr-2">
           {folderPath ? (
-            <Folder className="w-3.5 h-3.5 text-black dark:text-white shrink-0" />
+            <Folder className="w-4 h-4 text-black dark:text-white shrink-0" />
           ) : (
-            <FileCode className={`w-3.5 h-3.5 ${meta.color} shrink-0`} />
+            <FileCode className={`w-4 h-4 ${meta.color} shrink-0`} />
           )}
 
           <div className="flex items-center font-mono text-xs truncate">
             {folderPath && (
-              <span className="text-black/50 dark:text-white/50 font-medium truncate max-w-[120px]">
+              <span className="text-black/50 dark:text-white/50 font-medium truncate max-w-[140px]">
                 {folderPath}
               </span>
             )}
-            <span className="font-extrabold text-black dark:text-white">
+            <span className="font-black text-black dark:text-white">
               {baseName}
             </span>
           </div>
 
           <span
-            className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono font-black ${meta.bg} ${meta.color} border ${meta.border} shrink-0`}
+            className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-black ${meta.bg} ${meta.color} border ${meta.border} shrink-0`}
           >
             {meta.label}
           </span>
@@ -138,69 +134,67 @@ const CompactFileTab: React.FC<{
           </span>
         </div>
 
-        {/* Right: Actions and Expand Chevron */}
-        <div className="flex items-center space-x-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-          {/* Quick Preview Button */}
-          {canRun && (
-            <button
-              type="button"
-              onClick={() => onPreview(codeString, lang, filename)}
-              className="px-2.5 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black text-[11px] font-extrabold flex items-center space-x-1 hover:opacity-85 transition-opacity cursor-pointer shadow-2xs"
-              title={`Preview ${filename}`}
-            >
-              <Play className="w-3 h-3 fill-current" />
-              <span>Preview</span>
-            </button>
-          )}
+        {/* Right: PLAY Button placed above code box, Copy, and Collapse toggle */}
+        <div className="flex items-center space-x-2 shrink-0">
+          {/* Prominent PLAY Button Above Code Box */}
+          <button
+            type="button"
+            onClick={() => onPreview(codeString, lang, filename)}
+            className="px-3 py-1.5 rounded-xl bg-black text-white dark:bg-white dark:text-black text-xs font-black flex items-center space-x-1.5 hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-xs border border-black dark:border-white"
+            title={`Play / Execute ${filename} in Live Preview`}
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>Play</span>
+          </button>
 
           {/* Copy Button */}
           <button
             type="button"
             onClick={() => onCopy(codeString, blockIdx)}
-            className="hover:text-black dark:hover:text-white px-2 py-1 rounded-md hover:bg-black/10 dark:hover:bg-white/20 text-black/70 dark:text-white/70 text-[11px] font-bold transition-colors flex items-center space-x-1 cursor-pointer"
+            className="hover:text-black dark:hover:text-white px-2.5 py-1.5 rounded-xl hover:bg-black/10 dark:hover:bg-white/20 text-black/70 dark:text-white/70 text-xs font-bold transition-colors flex items-center space-x-1 cursor-pointer border border-black/15 dark:border-white/15"
             title="Copy Code"
           >
             {copiedBlockIndex === blockIdx ? (
               <>
-                <Check className="w-3 h-3 text-black dark:text-white stroke-[3]" />
+                <Check className="w-3.5 h-3.5 text-black dark:text-white stroke-[3]" />
                 <span className="text-black dark:text-white font-extrabold">Copied</span>
               </>
             ) : (
               <>
-                <Copy className="w-3 h-3" />
+                <Copy className="w-3.5 h-3.5" />
                 <span>Copy</span>
               </>
             )}
           </button>
 
-          {/* Toggle Expand Button */}
+          {/* Toggle Minimize/Maximize Button */}
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1 rounded-md text-black/60 hover:text-black dark:text-white/60 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/20 transition-transform cursor-pointer"
-            title={isExpanded ? "Collapse Code" : "Expand Code"}
+            className="p-1.5 rounded-xl text-black/60 hover:text-black dark:text-white/60 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/20 transition-transform cursor-pointer border border-transparent hover:border-black/15 dark:hover:border-white/15"
+            title={isExpanded ? "Collapse Code Box" : "Expose Code Box"}
           >
             {isExpanded ? (
-              <ChevronUp className="w-3.5 h-3.5 text-black dark:text-white" />
+              <ChevronUp className="w-4 h-4 text-black dark:text-white" />
             ) : (
-              <ChevronDown className="w-3.5 h-3.5 text-black dark:text-white" />
+              <ChevronDown className="w-4 h-4 text-black dark:text-white" />
             )}
           </button>
         </div>
       </div>
 
-      {/* Expanded Code View (Smooth animation) */}
-      <AnimatePresence>
+      {/* Exposed Code Box Content */}
+      <AnimatePresence initial={false}>
         {isExpanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="overflow-hidden border-t border-black/15 dark:border-white/15"
+            className="overflow-hidden"
           >
             <div className="relative">
-              <pre className="p-3.5 overflow-x-auto leading-relaxed text-[12px] font-mono bg-white dark:bg-black text-black dark:text-white select-text max-h-[480px]">
+              <pre className="p-4 overflow-x-auto leading-relaxed text-[12.5px] font-mono bg-[#fdfdfd] dark:bg-[#0a0a0a] text-black dark:text-white select-text max-h-[500px]">
                 <code>{codeString}</code>
               </pre>
             </div>

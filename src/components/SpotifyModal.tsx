@@ -23,7 +23,7 @@ export const SpotifyModal: React.FC<SpotifyModalProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<SpotifyTrack[]>([]);
 
-  const appUrl = typeof window !== "undefined" ? window.location.origin : "https://kelvis.vercel.app";
+  const appUrl = typeof window !== "undefined" && window.location ? window.location.origin : "https://kelvis.vercel.app";
   const callbackUrl = `${appUrl}/auth/callback`;
 
   // Listen for message from popup window

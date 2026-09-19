@@ -1,8 +1,7 @@
 // Kelvis AI Progressive Web App Service Worker
-const CACHE_NAME = "kelvis-ai-pwa-v1";
+const CACHE_NAME = "kelvis-ai-pwa-v2";
 const STATIC_ASSETS = [
   "/",
-  "/index.html",
   "/manifest.json",
   "/favicon.svg",
   "/icon-192.svg",
@@ -10,19 +9,19 @@ const STATIC_ASSETS = [
   "/icon-maskable.svg"
 ];
 
-// Install Event: Pre-cache core shell
+// Install Event: Pre-cache only icons and manifest
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn("PWA pre-cache warning:", err);
+        console.warn("PWA pre-cache notice:", err);
       });
     })
   );
   self.skipWaiting();
 });
 
-// Activate Event: Clean up old cache versions
+// Activate Event: Clean up old cache versions and claim clients
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -35,47 +34,37 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Fetch Event: Network-first for dynamic API routes, Stale-while-revalidate for static assets
+// Fetch Event: Pass all dev server, API, module, and dynamic requests directly to network
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // Always pass API and dynamic server endpoints straight to network
+  // Bypass service worker completely for API, dynamic server endpoints, Vite modules, node_modules, and scripts
   if (
     url.pathname.startsWith("/api") ||
     url.pathname.startsWith("/chat") ||
     url.pathname.startsWith("/define-text") ||
     url.pathname.startsWith("/execute-code") ||
     url.pathname.startsWith("/supabase") ||
+    url.pathname.startsWith("/@vite") ||
+    url.pathname.startsWith("/@fs") ||
+    url.pathname.startsWith("/src") ||
+    url.pathname.startsWith("/node_modules") ||
+    url.search.includes("import") ||
+    url.search.includes("v=") ||
+    url.pathname.endsWith(".tsx") ||
+    url.pathname.endsWith(".ts") ||
+    url.pathname.endsWith(".jsx") ||
+    url.pathname.endsWith(".js") ||
+    url.pathname.endsWith(".css") ||
     event.request.method !== "GET"
   ) {
     return;
   }
 
+  // Network-first for everything else
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          if (
-            networkResponse &&
-            networkResponse.status === 200 &&
-            networkResponse.type === "basic"
-          ) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => {
-          // If offline and requesting navigation, return cached index.html
-          if (event.request.mode === "navigate") {
-            return caches.match("/index.html");
-          }
-          return cachedResponse;
-        });
-
-      return cachedResponse || fetchPromise;
+    fetch(event.request).catch(() => {
+      return caches.match(event.request);
     })
   );
 });

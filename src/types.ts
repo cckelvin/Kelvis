@@ -137,3 +137,19 @@ export interface Bouk {
   // Allow dynamic access to page_1 through page_100
   [key: string]: any;
 }
+
+export interface LocalGgufModel {
+  id: string;
+  name: string;
+  filename: string;
+  architecture: string;
+  quantization: string;
+  contextLength?: number;
+  sizeBytes?: number;
+  parameters?: string;
+  loadedAt: string;
+  tested: boolean;
+  benchmarkSpeed?: string;
+  testPrompt?: string;
+  testOutput?: string;
+}

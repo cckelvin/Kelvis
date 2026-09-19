@@ -18,6 +18,8 @@ import { CodebaseModal } from "./components/CodebaseModal";
 import { CodePreviewModal, ProjectFile } from "./components/CodePreviewModal";
 import { MemoryModal } from "./components/MemoryModal";
 import { InstallAppModal } from "./components/InstallAppModal";
+import { AuthPage } from "./components/AuthPage";
+import { GgufModelModal } from "./components/GgufModelModal";
 import { AttachedFile, ChatSession, Message, AppSettings, SpotifyTrack, QuizPayload } from "./types";
 import { Trash2, Download, RotateCcw, Sparkles, Brain } from "lucide-react";
 import {
@@ -121,7 +123,19 @@ export default function App() {
   });
   const [isQuizOpen, setIsQuizOpen] = useState<boolean>(false);
   const [activeQuiz, setActiveQuiz] = useState<QuizPayload | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(() => {
+    const saved = localStorage.getItem("kelvis_auth_user");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.email || null;
+      } catch (e) {
+        return saved;
+      }
+    }
+    return null;
+  });
+  const [isGgufModalOpen, setIsGgufModalOpen] = useState<boolean>(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState<boolean>(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
@@ -865,8 +879,39 @@ export default function App() {
     saveSupabaseMessage(activeSessionId, aiMsg);
   };
 
+  // Remove guest access: if not signed in / registered, show AuthPage
+  if (!userEmail) {
+    return (
+      <div className={settings.darkTheme ? "dark" : ""}>
+        <AuthPage
+          onLoginSuccess={(email) => {
+            setUserEmail(email);
+          }}
+        />
+      </div>
+    );
+  }
+
+  const isCodingActive =
+    isCodeMode ||
+    selectedModel.includes("compound") ||
+    selectedModel.includes("120b") ||
+    /\b(code|function|script|html|css|javascript|typescript|react|python|build|app|component|algorithm|def |class )\b/i.test(
+      prompt
+    );
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-white dark:bg-black text-black dark:text-white font-sans">
+    <div className="flex h-screen w-screen overflow-hidden bg-white dark:bg-black text-black dark:text-white font-sans relative">
+      {/* Ambient luminous dark red light on the edges of the sides of the screen when coding Gear 1.0 */}
+      {isCodingActive && (
+        <div
+          className="pointer-events-none fixed inset-0 z-40 transition-opacity duration-700 opacity-100 shadow-[inset_0_0_80px_rgba(220,38,38,0.3),inset_40px_0_55px_rgba(185,28,28,0.25),inset_-40px_0_55px_rgba(185,28,28,0.25)]"
+          aria-hidden="true"
+        >
+          <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-red-600/30 to-transparent pointer-events-none" />
+          <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-red-600/30 to-transparent pointer-events-none" />
+        </div>
+      )}
       {/* Sidebar matching hand drawn lower panel */}
       <Sidebar
         isOpen={isSidebarOpen}
@@ -885,6 +930,10 @@ export default function App() {
         onOpenInstall={() => setIsInstallModalOpen(true)}
         codebaseFileCount={codebaseFiles.length}
         userEmail={userEmail}
+        onSignOut={() => {
+          localStorage.removeItem("kelvis_auth_user");
+          setUserEmail(null);
+        }}
       />
 
       {/* Main Window Container matching sketch top rectangle */}
@@ -1073,9 +1122,14 @@ export default function App() {
             const nextMode = !isCodeMode;
             setIsCodeMode(nextMode);
             if (nextMode) {
-              setSelectedModel("openai/gpt-oss-120b");
+              setSelectedModel("groq/compound");
             }
           }}
+          isSearchGrounding={settings.searchGrounding}
+          onToggleSearchGrounding={() =>
+            setSettings((prev) => ({ ...prev, searchGrounding: !prev.searchGrounding }))
+          }
+          onOpenGgufModal={() => setIsGgufModalOpen(true)}
         />
       </main>
 
@@ -1219,6 +1273,14 @@ export default function App() {
         onClose={() => setIsInstallModalOpen(false)}
         deferredPrompt={deferredInstallPrompt}
         isInstallable={isAppInstallable}
+      />
+
+      {/* Local GGUF Model Loader & Benchmarking Modal */}
+      <GgufModelModal
+        isOpen={isGgufModalOpen}
+        onClose={() => setIsGgufModalOpen(false)}
+        onSelectModel={(modelId) => setSelectedModel(modelId)}
+        currentSelectedModel={selectedModel}
       />
     </div>
   );

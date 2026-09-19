@@ -59,10 +59,13 @@ function pcmToWav(pcmData: Buffer, sampleRate = 24000, numChannels = 1, bitsPerS
   return Buffer.concat([header, pcmData]);
 }
 
-// Normalize Groq model names including vision/image mixtral-8x7b and llama3-8b
+// Normalize Groq model names including compound, vision, and local GGUF models
 function normalizeGroqModelName(requestedModel?: string): string {
   if (!requestedModel) return "openai/gpt-oss-120b";
   const m = String(requestedModel).toLowerCase();
+  if (m.includes("compound")) {
+    return "groq/compound";
+  }
   if (m.includes("mixtral") || m.includes("8x7b")) {
     return "mixtral-8x7b-32768";
   }
@@ -72,7 +75,7 @@ function normalizeGroqModelName(requestedModel?: string): string {
   if (m.includes("20b") || m.includes("gpt-oss-20b") || m.includes("oss-20b")) {
     return "openai/gpt-oss-20b";
   }
-  return requestedModel.replace(/^groq\//, "");
+  return requestedModel;
 }
 
 // Helper to determine if Google CSE / web search is necessary for a prompt

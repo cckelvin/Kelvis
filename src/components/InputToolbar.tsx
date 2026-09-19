@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   ArrowUp,
   Mic,
@@ -15,8 +15,11 @@ import {
   Paperclip,
   UploadCloud,
   FileUp,
+  Globe,
+  Layers,
+  HardDrive,
 } from "lucide-react";
-import { AttachedFile } from "../types";
+import { AttachedFile, LocalGgufModel } from "../types";
 
 interface InputToolbarProps {
   prompt: string;
@@ -34,9 +37,13 @@ interface InputToolbarProps {
   onToggleVoiceCall: () => void;
   isCodeMode?: boolean;
   onToggleCodeMode?: () => void;
+  isSearchGrounding?: boolean;
+  onToggleSearchGrounding?: () => void;
+  onOpenGgufModal?: () => void;
 }
 
-const AVAILABLE_MODELS = [
+const BASE_MODELS = [
+  { id: "groq/compound", name: "Groq Compound", desc: "Groq Compound Coding & Reasoning Engine" },
   { id: "openai/gpt-oss-120b", name: "openai/gpt-oss-120b", desc: "Flagship 120B Open Architecture Model" },
   { id: "openai/gpt-oss-20b", name: "openai/gpt-oss-20b", desc: "High-Speed 20B Reasoning Model" },
   { id: "groq/mixtral-8x7b-32768", name: "groq/mixtral-8x7b-32768", desc: "Mixtral 8x7B (Vision & Image Prompting)" },
@@ -59,10 +66,45 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
   onToggleVoiceCall,
   isCodeMode,
   onToggleCodeMode,
+  isSearchGrounding = true,
+  onToggleSearchGrounding,
+  onOpenGgufModal,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [localGgufModels, setLocalGgufModels] = useState<LocalGgufModel[]>(() => {
+    const saved = localStorage.getItem("kelvis_local_gguf_models");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    const sync = () => {
+      const saved = localStorage.getItem("kelvis_local_gguf_models");
+      if (saved) {
+        try {
+          setLocalGgufModels(JSON.parse(saved));
+        } catch (e) {}
+      }
+    };
+    window.addEventListener("kelvis_gguf_models_updated", sync);
+    return () => window.removeEventListener("kelvis_gguf_models_updated", sync);
+  }, []);
+
+  const isCoding =
+    isCodeMode ||
+    selectedModel.includes("compound") ||
+    selectedModel.includes("120b") ||
+    /\b(code|function|script|html|css|javascript|typescript|react|python|build|app|component|algorithm|def |class )\b/i.test(
+      prompt
+    );
 
   const processFiles = (fileList: File[]) => {
     if (!fileList || fileList.length === 0) return;
@@ -126,7 +168,12 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
   };
 
   const currentModelObj =
-    AVAILABLE_MODELS.find((m) => m.id === selectedModel) || AVAILABLE_MODELS[0];
+    BASE_MODELS.find((m) => m.id === selectedModel) ||
+    localGgufModels.find((m) => m.id === selectedModel) || {
+      id: selectedModel,
+      name: selectedModel.replace("local/", ""),
+      desc: "Local GGUF Model",
+    };
 
   const canSend = !isLoading && (prompt.trim().length > 0 || attachedFiles.length > 0);
 
@@ -190,6 +237,15 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
               <FileUp className="w-3.5 h-3.5" />
               <span>+ Add more files</span>
             </button>
+          </div>
+        )}
+
+        {/* Gear 1.0 Coding Mode Status Tab directly above left side of input */}
+        {isCoding && (
+          <div className="flex items-center space-x-2 px-3 py-1 mb-2 ml-1 rounded-full bg-black/95 dark:bg-zinc-950 border border-red-500/80 shadow-[0_0_15px_rgba(239,68,68,0.45)] text-red-500 text-xs font-mono font-black w-fit animate-pulse select-none">
+            {/* Spinning red circle ⭕ icon */}
+            <span className="w-3.5 h-3.5 rounded-full border-2 border-red-500 border-t-transparent animate-spin inline-block shrink-0" />
+            <span className="tracking-wide">calling Gear1.0</span>
           </div>
         )}
 
@@ -314,24 +370,44 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
               <Radio className={`w-4 h-4 ${isVoiceCallActive ? "animate-spin" : ""}`} />
             </button>
 
-            {/* BUTTON 4: CODE MODE -> Code icon `💻` */}
+            {/* BUTTON 4: GROQ COMPOUND CODING MODE -> Code icon `💻` */}
             <button
               type="button"
               onClick={() => {
                 if (onToggleCodeMode) {
                   onToggleCodeMode();
-                } else {
-                  setSelectedModel("openai/gpt-oss-120b");
                 }
+                setSelectedModel("groq/compound");
               }}
               className={`p-2 rounded-xl border transition-all shadow-2xs relative cursor-pointer ${
-                isCodeMode || selectedModel.includes("120b")
+                isCodeMode || selectedModel.includes("compound")
                   ? "bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-md font-bold"
                   : "border-black/20 dark:border-white/20 bg-white/80 dark:bg-black/80 hover:bg-black/10 dark:hover:bg-white/10 text-black dark:text-white"
               }`}
-              title="Coding Mode (Strictly runs on Open GPT-OSS 120B)"
+              title="Groq Compound Coding Engine (calling Gear1.0)"
             >
               <Code className="w-4 h-4" />
+            </button>
+
+            {/* BUTTON 5: GOOGLE WEB SEARCH GROUNDING -> Globe icon `🌐` */}
+            <button
+              type="button"
+              onClick={onToggleSearchGrounding}
+              className={`p-2 rounded-xl border transition-all shadow-2xs relative cursor-pointer ${
+                isSearchGrounding
+                  ? "bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-md font-bold"
+                  : "border-black/20 dark:border-white/20 bg-white/80 dark:bg-black/80 hover:bg-black/10 dark:hover:bg-white/10 text-black dark:text-white"
+              }`}
+              title={
+                isSearchGrounding
+                  ? "Google Web Search Grounding Active (Google API & CSE)"
+                  : "Enable Google Web Search Grounding"
+              }
+            >
+              <Globe className="w-4 h-4" />
+              {isSearchGrounding && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-black" />
+              )}
             </button>
           </div>
 
@@ -341,7 +417,7 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
               type="button"
               onClick={() => setShowModelDropdown(!showModelDropdown)}
               className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full border border-black/30 dark:border-white/30 bg-white dark:bg-black hover:bg-black/5 dark:hover:bg-white/10 text-black dark:text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-              title="Select AI Model"
+              title="Select AI Model or Load Local GGUF"
             >
               <span className="truncate max-w-[110px] sm:max-w-none">
                 {currentModelObj.name}
@@ -356,11 +432,13 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
                   className="fixed inset-0 z-20"
                   onClick={() => setShowModelDropdown(false)}
                 />
-                <div className="absolute right-0 bottom-full mb-2 w-72 bg-white dark:bg-black border border-black/30 dark:border-white/30 rounded-2xl shadow-xl z-30 overflow-hidden py-1 select-none">
-                  <div className="px-3 py-2 border-b border-black/15 dark:border-white/15 text-[11px] font-black text-black/60 dark:text-white/60 uppercase tracking-wider">
-                    Model Selection
+                <div className="absolute right-0 bottom-full mb-2 w-80 bg-white dark:bg-black border-2 border-black dark:border-white rounded-2xl shadow-2xl z-30 overflow-hidden py-1 select-none max-h-96 overflow-y-auto">
+                  <div className="px-3 py-2 border-b border-black/15 dark:border-white/15 text-[11px] font-black text-black/60 dark:text-white/60 uppercase tracking-wider flex items-center justify-between">
+                    <span>Cloud & Fast Inference</span>
+                    <span className="font-mono text-[10px]">Groq & OSS</span>
                   </div>
-                  {AVAILABLE_MODELS.map((model) => (
+
+                  {BASE_MODELS.map((model) => (
                     <button
                       key={model.id}
                       type="button"
@@ -371,10 +449,15 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
                       className="w-full text-left px-3 py-2.5 hover:bg-black/5 dark:hover:bg-white/10 flex items-start justify-between transition-colors cursor-pointer"
                     >
                       <div>
-                        <div className="text-xs font-bold text-black dark:text-white">
-                          {model.name}
+                        <div className="text-xs font-black text-black dark:text-white flex items-center space-x-1.5">
+                          <span>{model.name}</span>
+                          {model.id === "groq/compound" && (
+                            <span className="text-[9px] px-1.5 py-0.2 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-md font-mono font-bold">
+                              Coding Engine
+                            </span>
+                          )}
                         </div>
-                        <div className="text-[10px] font-medium text-black/60 dark:text-white/60">
+                        <div className="text-[10px] font-medium text-black/60 dark:text-white/60 mt-0.5">
                           {model.desc}
                         </div>
                       </div>
@@ -383,6 +466,58 @@ export const InputToolbar: React.FC<InputToolbarProps> = ({
                       )}
                     </button>
                   ))}
+
+                  {/* Local GGUF Section */}
+                  {localGgufModels.length > 0 && (
+                    <>
+                      <div className="px-3 py-1.5 bg-black/5 dark:bg-white/5 border-y border-black/15 dark:border-white/15 text-[10px] font-black text-black/60 dark:text-white/60 uppercase tracking-wider flex items-center justify-between">
+                        <span>Local GGUF Models ({localGgufModels.length})</span>
+                        <HardDrive className="w-3.5 h-3.5" />
+                      </div>
+
+                      {localGgufModels.map((model) => (
+                        <button
+                          key={model.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedModel(model.id);
+                            setShowModelDropdown(false);
+                          }}
+                          className="w-full text-left px-3 py-2.5 hover:bg-black/5 dark:hover:bg-white/10 flex items-start justify-between transition-colors cursor-pointer"
+                        >
+                          <div className="min-w-0 pr-2">
+                            <div className="text-xs font-black text-black dark:text-white flex items-center space-x-1 truncate">
+                              <span className="truncate">{model.name}</span>
+                              <span className="text-[9px] px-1 py-0.2 rounded bg-black/10 dark:bg-white/15 font-mono">
+                                {model.quantization}
+                              </span>
+                            </div>
+                            <div className="text-[10px] font-mono text-black/60 dark:text-white/60 mt-0.5">
+                              {model.parameters} • {model.benchmarkSpeed || "Local"}
+                            </div>
+                          </div>
+                          {selectedModel === model.id && (
+                            <Check className="w-4 h-4 text-black dark:text-white shrink-0 mt-0.5 stroke-[3]" />
+                          )}
+                        </button>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Button to open Local GGUF Loader & Tester */}
+                  <div className="p-2 border-t border-black/15 dark:border-white/15 bg-black/5 dark:bg-white/5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowModelDropdown(false);
+                        if (onOpenGgufModal) onOpenGgufModal();
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-black text-white dark:bg-white dark:text-black font-black text-xs flex items-center justify-center space-x-1.5 hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-xs"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>📦 Load & Test Local GGUF Model</span>
+                    </button>
+                  </div>
                 </div>
               </>
             )}
